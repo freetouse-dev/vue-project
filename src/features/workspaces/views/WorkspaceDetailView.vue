@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { workspaceService } from '@/features/workspaces/services/workspaceService'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { formatApiError } from '@/services/apiClient'
 import type { Workspace, WorkspaceMember } from '@/features/workspaces/types/workspace.types'
+import { projectService } from '@/features/projects/services/projectService'
+import type { Project } from '@/features/projects/types/project.types'
 import AddMemberModal from '@/features/workspaces/components/AddMemberModal.vue'
+import CreateProjectModal from '@/features/projects/components/CreateProjectModal.vue'
 import UnderDevelopmentModal from '@/components/common/UnderDevelopmentModal.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import {
-  LucideBuilding2,
   LucideUsers,
   LucideFolderKanban,
   LucideSettings,
@@ -22,19 +24,21 @@ import {
   LucideEdit,
   LucideTrash2,
   LucidePlus,
+  LucideArrowRight,
 } from 'lucide-vue-next'
 
 const route = useRoute()
-const router = useRouter()
 const workspaceStore = useWorkspaceStore()
 
 const activeTab = ref<'overview' | 'members' | 'settings'>('overview')
 const workspace = ref<Workspace | null>(null)
 const members = ref<WorkspaceMember[]>([])
+const projects = ref<Project[]>([])
 const isLoading = ref(true)
 const errorMessage = ref('')
 
 const showAddMemberModal = ref(false)
+const showCreateProjectModal = ref(false)
 const showUnderDevModal = ref(false)
 const underDevFeature = ref('')
 
@@ -46,17 +50,36 @@ async function loadWorkspaceData() {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    const [wsData, membersData] = await Promise.all([
+    const [wsData, membersData, projectsData] = await Promise.all([
       workspaceService.getWorkspace(slug.value),
       workspaceService.getWorkspaceMembers(slug.value),
+      projectService.getProjects(slug.value).catch(() => []),
     ])
     workspace.value = wsData
     members.value = membersData
+    projects.value = projectsData
     workspaceStore.currentWorkspace = wsData
   } catch (err: unknown) {
     errorMessage.value = formatApiError(err)
   } finally {
     isLoading.value = false
+  }
+}
+
+function handleProjectCreated(newProject: Project) {
+  projects.value.unshift(newProject)
+}
+
+function getProjectStatusBadgeColor(status: string) {
+  switch (status) {
+    case 'ACTIVE':
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    case 'COMPLETED':
+      return 'bg-blue-50 text-blue-700 border-blue-200'
+    case 'ARCHIVED':
+      return 'bg-slate-100 text-slate-600 border-slate-200'
+    default:
+      return 'bg-slate-50 text-slate-600 border-slate-200'
   }
 }
 
@@ -202,7 +225,13 @@ function getRoleBadgeColor(role: string) {
             @click="activeTab = 'overview'"
           >
             <LucideFolderKanban class="w-4 h-4 shrink-0" />
-            <span class="hidden sm:inline">Projects & Overview</span>
+            <span class="hidden sm:inline">Projects</span>
+            <span
+              class="text-[11px] sm:text-xs px-1.5 py-0.5 rounded-full font-medium"
+              :class="activeTab === 'overview' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'"
+            >
+              {{ projects.length }}
+            </span>
           </button>
 
           <!-- Members Tab -->
@@ -259,36 +288,77 @@ function getRoleBadgeColor(role: string) {
 
           <BaseButton
             size="sm"
-            @click="triggerUnderDev('Create Project Endpoint')"
+            @click="showCreateProjectModal = true"
           >
             <LucidePlus class="w-4 h-4" />
             <span>New Project</span>
           </BaseButton>
         </div>
 
-        <!-- Honest Status: Project Endpoints under development in backend -->
-        <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-4">
-          <div class="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 mx-auto flex items-center justify-center">
+        <!-- Project Cards Grid -->
+        <div v-if="projects.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <router-link
+            v-for="proj in projects"
+            :key="proj.id"
+            :to="`/workspaces/${workspace.slug}/projects/${proj.key}`"
+            class="group block bg-white rounded-2xl border border-slate-200 p-5 hover:border-indigo-400 hover:shadow-md transition-all relative"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm tracking-wider font-mono border border-indigo-100">
+                {{ proj.key.slice(0, 3) }}
+              </div>
+              <span
+                class="px-2 py-0.5 rounded-full text-[11px] font-semibold border"
+                :class="getProjectStatusBadgeColor(proj.status)"
+              >
+                {{ proj.status }}
+              </span>
+            </div>
+
+            <div class="mt-3">
+              <div class="flex items-center gap-2">
+                <h3 class="font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors text-base truncate">
+                  {{ proj.name }}
+                </h3>
+                <span class="text-xs font-mono font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                  {{ proj.key }}
+                </span>
+              </div>
+              <p class="mt-1.5 text-xs text-slate-500 line-clamp-2 min-h-[2rem]">
+                {{ proj.description || 'No description provided.' }}
+              </p>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+              <span class="flex items-center gap-1">
+                <LucideCalendar class="w-3.5 h-3.5" />
+                {{ formatDate(proj.created_at) }}
+              </span>
+              <span class="inline-flex items-center gap-1 font-medium text-indigo-600 group-hover:translate-x-0.5 transition-transform">
+                <span>View</span>
+                <LucideArrowRight class="w-3.5 h-3.5" />
+              </span>
+            </div>
+          </router-link>
+        </div>
+
+        <!-- Empty State -->
+        <div v-else class="bg-white rounded-2xl border border-dashed border-slate-300 p-8 sm:p-12 text-center space-y-4">
+          <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 mx-auto flex items-center justify-center">
             <LucideFolderKanban class="w-6 h-6" />
           </div>
-          <div class="max-w-md mx-auto">
-            <div class="inline-flex items-center gap-2 mb-2">
-              <StatusBadge status="under_development" label="Backend Route Pending" />
-            </div>
+          <div class="max-w-sm mx-auto">
             <h3 class="text-base font-semibold text-slate-900">
-              Project API Integration
+              No projects yet
             </h3>
-            <p class="text-sm text-slate-500 mt-1 leading-relaxed">
-              Your FastAPI backend has defined the Project models and schemas, but the router is currently being implemented. Once exposed, projects will automatically populate here.
+            <p class="text-xs sm:text-sm text-slate-500 mt-1">
+              Create your first project in this workspace to organize tasks, track milestones, and assign team members.
             </p>
           </div>
           <div class="pt-2">
-            <BaseButton
-              variant="outline"
-              size="sm"
-              @click="triggerUnderDev('Project APIs')"
-            >
-              Learn More
+            <BaseButton size="sm" @click="showCreateProjectModal = true">
+              <LucidePlus class="w-4 h-4" />
+              <span>Create First Project</span>
             </BaseButton>
           </div>
         </div>
@@ -399,6 +469,13 @@ function getRoleBadgeColor(role: string) {
     </div>
 
     <!-- Modals -->
+    <CreateProjectModal
+      v-if="workspace"
+      v-model="showCreateProjectModal"
+      :workspace-slug="workspace.slug"
+      @created="handleProjectCreated"
+    />
+
     <AddMemberModal
       v-model="showAddMemberModal"
       :slug="slug"

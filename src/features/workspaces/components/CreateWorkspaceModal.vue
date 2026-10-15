@@ -6,7 +6,7 @@ import BaseInput from '@/components/common/BaseInput.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
 import { LucideBuilding2, LucideX, LucideAlertCircle } from 'lucide-vue-next'
 
-const props = defineProps<{
+defineProps<{
   modelValue: boolean
 }>()
 

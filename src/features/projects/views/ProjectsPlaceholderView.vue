@@ -1,23 +1,97 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useWorkspaceStore } from '@/stores/workspace'
+import { projectService } from '@/features/projects/services/projectService'
+import { formatApiError } from '@/services/apiClient'
+import type { Project } from '@/features/projects/types/project.types'
+import CreateProjectModal from '@/features/projects/components/CreateProjectModal.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
-import UnderDevelopmentModal from '@/components/common/UnderDevelopmentModal.vue'
 import {
   LucideFolderKanban,
   LucidePlus,
-  LucideCheckCircle2,
-  LucideClock,
-  LucideCode,
+  LucideBuilding2,
+  LucideCalendar,
+  LucideArrowRight,
+  LucideAlertCircle,
 } from 'lucide-vue-next'
 
-const showModal = ref(false)
-const modalFeature = ref('')
+const workspaceStore = useWorkspaceStore()
 
-function openModal(feature: string) {
-  modalFeature.value = feature
-  showModal.value = true
+const projects = ref<Project[]>([])
+const isLoadingProjects = ref(false)
+const errorMessage = ref('')
+const showCreateModal = ref(false)
+
+const currentWorkspace = computed(() => workspaceStore.currentWorkspace)
+const workspaces = computed(() => workspaceStore.workspaces)
+
+async function loadProjects() {
+  if (!currentWorkspace.value?.slug) {
+    projects.value = []
+    return
+  }
+
+  isLoadingProjects.value = true
+  errorMessage.value = ''
+  try {
+    projects.value = await projectService.getProjects(currentWorkspace.value.slug)
+  } catch (err: unknown) {
+    errorMessage.value = formatApiError(err)
+  } finally {
+    isLoadingProjects.value = false
+  }
 }
+
+function handleWorkspaceChange(event: Event) {
+  const target = event.target as HTMLSelectElement
+  const slug = target.value
+  workspaceStore.selectWorkspaceBySlug(slug)
+}
+
+function handleProjectCreated(newProject: Project) {
+  projects.value.unshift(newProject)
+}
+
+function formatDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function getStatusBadgeColor(status: string) {
+  switch (status) {
+    case 'ACTIVE':
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    case 'COMPLETED':
+      return 'bg-blue-50 text-blue-700 border-blue-200'
+    case 'ARCHIVED':
+      return 'bg-slate-100 text-slate-600 border-slate-200'
+    default:
+      return 'bg-slate-50 text-slate-600 border-slate-200'
+  }
+}
+
+onMounted(async () => {
+  if (workspaces.value.length === 0) {
+    await workspaceStore.fetchWorkspaces().catch(() => {})
+  }
+  if (currentWorkspace.value) {
+    loadProjects()
+  }
+})
+
+watch(
+  () => currentWorkspace.value?.slug,
+  (newSlug) => {
+    if (newSlug) {
+      loadProjects()
+    }
+  }
+)
 </script>
 
 <template>
@@ -25,79 +99,199 @@ function openModal(feature: string) {
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
       <div>
-        <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-          Projects
-        </h1>
+        <div class="flex items-center gap-2">
+          <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+            Projects
+          </h1>
+          <StatusBadge status="implemented" label="API Active" />
+        </div>
         <p class="text-xs sm:text-sm text-slate-500 mt-0.5 sm:mt-1">
-          Organize, plan, and track team initiatives
+          View and organize team initiatives across your workspaces
         </p>
       </div>
 
-      <div class="flex items-center justify-between sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto">
-        <StatusBadge status="under_development" label="In Progress" />
-        <BaseButton size="sm" class="sm:text-sm" @click="openModal('Create Project API')">
+      <div
+        v-if="currentWorkspace"
+        class="flex items-center justify-between sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto"
+      >
+        <BaseButton
+          size="sm"
+          class="sm:text-sm"
+          @click="showCreateModal = true"
+        >
           <LucidePlus class="w-4 h-4" />
           <span>New Project</span>
         </BaseButton>
       </div>
     </div>
 
-    <!-- Feature Status Explanation Card -->
-    <div class="bg-gradient-to-br from-indigo-50/50 via-white to-sky-50/50 rounded-2xl border border-indigo-100 p-5 sm:p-8 shadow-xs">
-      <div class="max-w-3xl space-y-4">
-        <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md">
-          <LucideFolderKanban class="w-5 h-5 sm:w-6 sm:h-6" />
-        </div>
+    <!-- Workspace Selector Bar (if user has workspaces) -->
+    <div
+      v-if="workspaces.length > 0"
+      class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+    >
+      <div class="flex items-center gap-2 text-sm text-slate-600">
+        <LucideBuilding2 class="w-4 h-4 text-indigo-600" />
+        <span class="font-medium">Active Workspace:</span>
+      </div>
 
-        <h2 class="text-lg sm:text-xl font-bold text-slate-900">
-          Projects Module — Ready for Backend Integration
-        </h2>
+      <div class="flex items-center gap-3">
+        <select
+          :value="currentWorkspace?.slug"
+          class="text-sm bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 font-medium text-slate-700 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
+          @change="handleWorkspaceChange"
+        >
+          <option
+            v-for="ws in workspaces"
+            :key="ws.id"
+            :value="ws.slug"
+          >
+            {{ ws.name }} ({{ ws.slug }})
+          </option>
+        </select>
 
-        <p class="text-sm text-slate-600 leading-relaxed">
-          The frontend layout and architecture are set up and awaiting the project endpoints in your FastAPI backend. In accordance with your project requirements, we do not simulate fake data or call non-existent endpoints.
+        <router-link
+          v-if="currentWorkspace"
+          :to="`/workspaces/${currentWorkspace.slug}`"
+          class="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline inline-flex items-center gap-1"
+        >
+          <span>Workspace Details</span>
+          <LucideArrowRight class="w-3.5 h-3.5" />
+        </router-link>
+      </div>
+    </div>
+
+    <!-- Error message -->
+    <div
+      v-if="errorMessage"
+      class="p-4 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700 flex items-center justify-between"
+    >
+      <div class="flex items-center gap-2">
+        <LucideAlertCircle class="w-4 h-4 text-rose-500 shrink-0" />
+        <span>{{ errorMessage }}</span>
+      </div>
+      <BaseButton size="sm" variant="outline" @click="loadProjects">
+        Retry
+      </BaseButton>
+    </div>
+
+    <!-- Loading State -->
+    <div
+      v-if="isLoadingProjects"
+      class="py-16 flex flex-col items-center justify-center text-slate-400 gap-3"
+    >
+      <LoadingSpinner size="lg" />
+      <span class="text-sm">Loading projects...</span>
+    </div>
+
+    <!-- No Workspaces State -->
+    <div
+      v-else-if="workspaces.length === 0"
+      class="bg-white rounded-2xl border border-dashed border-slate-300 p-8 sm:p-12 text-center space-y-4"
+    >
+      <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 mx-auto flex items-center justify-center">
+        <LucideBuilding2 class="w-6 h-6" />
+      </div>
+      <div class="max-w-sm mx-auto">
+        <h3 class="text-base font-semibold text-slate-900">
+          No workspaces found
+        </h3>
+        <p class="text-xs sm:text-sm text-slate-500 mt-1">
+          Projects belong to workspaces. Please create or join a workspace first to start organizing projects.
         </p>
+      </div>
+      <div class="pt-2">
+        <router-link to="/workspaces">
+          <BaseButton size="sm">
+            <span>Go to Workspaces</span>
+          </BaseButton>
+        </router-link>
+      </div>
+    </div>
 
-        <!-- Current Implementation Matrix -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-          <div class="p-4 bg-white rounded-xl border border-slate-200 space-y-2">
-            <div class="flex items-center gap-2 font-semibold text-sm text-slate-800">
-              <LucideCheckCircle2 class="w-4 h-4 text-emerald-500" />
-              <span>Backend Ready Components</span>
+    <!-- Projects List -->
+    <div v-else-if="currentWorkspace">
+      <!-- Grid -->
+      <div
+        v-if="projects.length > 0"
+        class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+      >
+        <router-link
+          v-for="project in projects"
+          :key="project.id"
+          :to="`/workspaces/${currentWorkspace.slug}/projects/${project.key}`"
+          class="group block bg-white rounded-2xl border border-slate-200 p-5 hover:border-indigo-400 hover:shadow-md transition-all relative"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm tracking-wider font-mono border border-indigo-100">
+              {{ project.key.slice(0, 3) }}
             </div>
-            <ul class="text-xs text-slate-600 space-y-1 list-disc list-inside">
-              <li>Project SQL Model (<code class="text-slate-700 font-mono">models/project.py</code>)</li>
-              <li>Pydantic Schemas (<code class="text-slate-700 font-mono">schemas/project.py</code>)</li>
-              <li>Project CRUD helpers (<code class="text-slate-700 font-mono">crud/project.py</code>)</li>
-            </ul>
+            <span
+              class="px-2 py-0.5 rounded-full text-[11px] font-semibold border"
+              :class="getStatusBadgeColor(project.status)"
+            >
+              {{ project.status }}
+            </span>
           </div>
 
-          <div class="p-4 bg-white rounded-xl border border-slate-200 space-y-2">
-            <div class="flex items-center gap-2 font-semibold text-sm text-slate-800">
-              <LucideClock class="w-4 h-4 text-amber-500" />
-              <span>Next Backend Steps</span>
+          <div class="mt-3">
+            <div class="flex items-center gap-2">
+              <h3 class="font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors text-base truncate">
+                {{ project.name }}
+              </h3>
+              <span class="text-xs font-mono font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                {{ project.key }}
+              </span>
             </div>
-            <ul class="text-xs text-slate-600 space-y-1 list-disc list-inside">
-              <li>Create Project API endpoints router (<code class="text-slate-700 font-mono">endpoints/projects.py</code>)</li>
-              <li>Register projects router in <code class="text-slate-700 font-mono">api/v1/api.py</code></li>
-              <li>Request frontend update once backend endpoints are completed!</li>
-            </ul>
+            <p class="mt-1.5 text-xs text-slate-500 line-clamp-2 min-h-[2rem]">
+              {{ project.description || 'No description provided.' }}
+            </p>
           </div>
+
+          <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+            <span class="flex items-center gap-1">
+              <LucideCalendar class="w-3.5 h-3.5" />
+              {{ formatDate(project.created_at) }}
+            </span>
+            <span class="inline-flex items-center gap-1 font-medium text-indigo-600 group-hover:translate-x-0.5 transition-transform">
+              <span>View</span>
+              <LucideArrowRight class="w-3.5 h-3.5" />
+            </span>
+          </div>
+        </router-link>
+      </div>
+
+      <!-- Empty State -->
+      <div
+        v-else
+        class="bg-white rounded-2xl border border-dashed border-slate-300 p-8 sm:p-12 text-center space-y-4"
+      >
+        <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 mx-auto flex items-center justify-center">
+          <LucideFolderKanban class="w-6 h-6" />
         </div>
-
-        <div class="pt-2 flex items-center gap-3">
-          <BaseButton variant="outline" size="sm" @click="openModal('Project Endpoints Details')">
-            <LucideCode class="w-4 h-4" />
-            <span>View Architecture Notice</span>
+        <div class="max-w-sm mx-auto">
+          <h3 class="text-base font-semibold text-slate-900">
+            No projects in {{ currentWorkspace.name }}
+          </h3>
+          <p class="text-xs sm:text-sm text-slate-500 mt-1">
+            Create your first project in this workspace to organize tasks, track milestones, and assign team members.
+          </p>
+        </div>
+        <div class="pt-2">
+          <BaseButton size="sm" @click="showCreateModal = true">
+            <LucidePlus class="w-4 h-4" />
+            <span>Create First Project</span>
           </BaseButton>
         </div>
       </div>
     </div>
 
-    <!-- Reusable Modal -->
-    <UnderDevelopmentModal
-      v-model="showModal"
-      :feature-name="modalFeature"
-      description="The Project REST endpoints are currently being built in the FastAPI backend. Once you expose the router and request an update, this page will be fully connected to live project CRUD operations."
+    <!-- Create Project Modal -->
+    <CreateProjectModal
+      v-if="currentWorkspace"
+      v-model="showCreateModal"
+      :workspace-slug="currentWorkspace.slug"
+      @created="handleProjectCreated"
     />
   </div>
 </template>

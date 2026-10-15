@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { LucideConstruction, LucideX } from 'lucide-vue-next'
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     modelValue: boolean
     title?: string

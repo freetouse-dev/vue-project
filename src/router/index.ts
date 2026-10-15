@@ -40,6 +40,11 @@ const router = createRouter({
           component: () => import('@/features/workspaces/views/WorkspaceDetailView.vue'),
         },
         {
+          path: 'workspaces/:slug/projects/:key',
+          name: 'project-detail',
+          component: () => import('@/features/projects/views/ProjectDetailView.vue'),
+        },
+        {
           path: 'projects',
           name: 'projects',
           component: () => import('@/features/projects/views/ProjectsPlaceholderView.vue'),

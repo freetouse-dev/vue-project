@@ -14,7 +14,6 @@ import {
   LucideArrowRight,
   LucideMoreVertical,
   LucideCalendar,
-  LucideFolder,
 } from 'lucide-vue-next'
 
 const router = useRouter()
