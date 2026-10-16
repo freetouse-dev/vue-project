@@ -28,6 +28,7 @@ import {
   LucideFolderKanban,
   LucideArrowRight,
   LucideAlertCircle,
+  LucideSearch,
 } from 'lucide-vue-next'
 
 const workspaceStore = useWorkspaceStore()
@@ -48,6 +49,7 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 
 const viewMode = ref<'kanban' | 'list'>('kanban')
+const searchQuery = ref('')
 const filterStatus = ref<TaskStatus | ''>('')
 const filterPriority = ref<TaskPriority | ''>('')
 
@@ -119,6 +121,7 @@ async function loadTasksForProject() {
   try {
     const [tasksData, membersData] = await Promise.all([
       taskService.getTasks(currentWorkspace.value.slug, selectedProjectKey.value, {
+        search: searchQuery.value.trim() || undefined,
         status: filterStatus.value || undefined,
         priority: filterPriority.value || undefined,
       }),
@@ -212,6 +215,19 @@ watch(selectedProjectKey, (newKey) => {
     loadTasksForProject()
   }
 })
+
+let searchTimeout: ReturnType<typeof setTimeout> | null = null
+watch(
+  () => searchQuery.value,
+  () => {
+    if (searchTimeout) clearTimeout(searchTimeout)
+    searchTimeout = setTimeout(() => {
+      if (selectedProjectKey.value) {
+        loadTasksForProject()
+      }
+    }, 300)
+  }
+)
 
 watch([filterStatus, filterPriority], () => {
   if (selectedProjectKey.value) {
@@ -390,6 +406,17 @@ watch([filterStatus, filterPriority], () => {
               <LucideList class="w-3.5 h-3.5" />
               <span>List</span>
             </button>
+          </div>
+
+          <!-- Search Input -->
+          <div class="relative w-full sm:w-52">
+            <LucideSearch class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="Search tasks..."
+              class="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors"
+            />
           </div>
 
           <!-- Priority Filter -->

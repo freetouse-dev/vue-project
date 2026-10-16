@@ -20,7 +20,9 @@ The application routes are configured in `src/router/index.ts`:
 | Route Path | Route Name | Target View Component | Auth Requirement | Layout Shell | Description |
 |---|---|---|---|---|---|
 | `/login` | `login` | `src/features/auth/views/LoginView.vue` | `guestOnly: true` | Blank (No Shell) | User authentication form for existing accounts. |
-| `/register` | `register` | `src/features/auth/views/RegisterView.vue` | `guestOnly: true` | Blank (No Shell) | New user registration form. |
+| `/register` | `register` | `src/features/auth/views/RegisterView.vue` | `guestOnly: true` | Blank (No Shell) | New user registration form; dispatches email verification OTP. |
+| `/verify-email` | `verify-email` | `src/features/auth/views/VerifyEmailView.vue` | `guestOnly: true` | Blank (No Shell) | 6-digit numeric OTP entry and resend request for unverified accounts. |
+| `/forgot-password` | `forgot-password` | `src/features/auth/views/ForgotPasswordView.vue` | `guestOnly: true` | Blank (No Shell) | 3-step password recovery wizard (request code, verify OTP, set new password). |
 | `/` | — | Redirect to `/workspaces` | `requiresAuth: true` | `AppLayout.vue` | Root route automatically redirects to the workspaces dashboard. |
 | `/workspaces` | `workspaces` | `src/features/workspaces/views/WorkspaceListView.vue` | `requiresAuth: true` | `AppLayout.vue` | Dashboard displaying all workspaces the user belongs to, with creation modal. |
 | `/workspaces/:slug` | `workspace-detail` | `src/features/workspaces/views/WorkspaceDetailView.vue` | `requiresAuth: true` | `AppLayout.vue` | Detailed view for a specific workspace, showing project cards, team members, and settings. |

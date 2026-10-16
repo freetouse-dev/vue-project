@@ -46,7 +46,21 @@ export interface TaskUpdatePayload {
   due_date?: string | null
 }
 
+export interface PaginatedResponse<T> {
+  items: T[]
+  total: number
+  page: number
+  size: number
+  total_pages: number
+}
+
 export interface TaskFilterParams {
+  search?: string
   status?: TaskStatus
   priority?: TaskPriority
+  sort_by?: 'task_number' | 'title' | 'status' | 'priority' | 'created_at' | 'due_date' | string
+  sort_order?: 'asc' | 'desc'
+  page?: number
+  size?: number
 }
+

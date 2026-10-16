@@ -33,6 +33,9 @@ Detailed documentation for every architectural and feature area is organized ins
 | **[`docs/STATE_MANAGEMENT.md`](./docs/STATE_MANAGEMENT.md)** | **State Management** | Pinia stores (`useAuthStore`, `useWorkspaceStore`), data ownership rules, and state resetting. |
 | **[`docs/TASKS.md`](./docs/TASKS.md)** | **Tasks & Kanban (Steps 20–22)** | Jira-style sequential ticket numbering (`MOB-1`), Kanban board columns, lifecycle state machine transitions, and task filtering. |
 | **[`docs/THEMING_AND_DESIGN_SYSTEM.md`](./docs/THEMING_AND_DESIGN_SYSTEM.md)** | **Theming & Design System** | Light/Dark/System themes, status & priority color tokens, custom `BaseSelect`, and Tailwind v4 setup. |
+| **[`docs/EMAIL_VERIFICATION_AND_PASSWORD_RESET.md`](./docs/EMAIL_VERIFICATION_AND_PASSWORD_RESET.md)** | **Email Verification & Password Reset (Steps 30–33)** | OTP-based registration confirmation, resend rules, 403 login intercept, and 3-step password recovery. |
+| **[`docs/COMMENTS_AND_COLLABORATION.md`](./docs/COMMENTS_AND_COLLABORATION.md)** | **Comments & Task Activity Trail (Steps 23–25)** | Task discussion thread, role-based comment deletion, and immutable change audit logging. |
+| **[`docs/REPORTS_AND_DASHBOARD.md`](./docs/REPORTS_AND_DASHBOARD.md)** | **Reports & Dashboard Analytics (Step 27)** | SQL aggregation metrics, KPI cards, status/priority breakdown, and overdue detection. |
 
 ---
 
@@ -83,7 +86,12 @@ npm run preview
 | Area | Feature | Backend Endpoint | Status in UI |
 |---|---|---|---|
 | **Auth** | User Registration | `POST /api/v1/auth/register` | Implemented |
-| **Auth** | User Login (OAuth2) | `POST /api/v1/auth/login` | Implemented |
+| **Auth** | Email Verification (OTP) | `POST /api/v1/auth/verify-email` | Implemented (`VerifyEmailView`) |
+| **Auth** | Resend Verification Code | `POST /api/v1/auth/resend-verification-otp` | Implemented |
+| **Auth** | Password Recovery (Forgot Password) | `POST /api/v1/auth/forgot-password` | Implemented (`ForgotPasswordView`) |
+| **Auth** | Verify Password Reset OTP | `POST /api/v1/auth/verify-reset-otp` | Implemented |
+| **Auth** | Reset Password | `POST /api/v1/auth/reset-password` | Implemented |
+| **Auth** | User Login (OAuth2 + Verification check) | `POST /api/v1/auth/login` | Implemented |
 | **Auth** | Current User Profile | `GET /api/v1/users/me` | Implemented |
 | **Workspaces** | List Workspaces | `GET /api/v1/workspaces/` | Implemented |
 | **Workspaces** | Create Workspace | `POST /api/v1/workspaces/` | Implemented |
@@ -96,11 +104,16 @@ npm run preview
 | **Projects** | Get Project by Key | `GET /api/v1/workspaces/{slug}/projects/{key}` | Implemented |
 | **Projects** | List Project Members | `GET /api/v1/workspaces/{slug}/projects/{key}/members` | Implemented |
 | **Projects** | Add Member to Project | `POST /api/v1/workspaces/{slug}/projects/{key}/members` | Implemented |
+| **Projects** | Project Dashboard Analytics | `GET /api/v1/workspaces/{slug}/projects/{key}/dashboard` | Implemented (`reportService` & Overview KPI) |
 | **Projects** | Edit/Delete Project | `PUT/DELETE /projects/{key}` | Under Development Modal |
-| **Tasks** | List & Filter Tasks | `GET /api/v1/workspaces/{slug}/projects/{key}/tasks/` | Implemented (Kanban & List) |
+| **Tasks** | List, Search, Filter, Sort & Paginate | `GET /api/v1/workspaces/{slug}/projects/{key}/tasks/` | Implemented (Kanban, List & Pagination) |
 | **Tasks** | Create Task (Auto-Ticket Key) | `POST /api/v1/workspaces/{slug}/projects/{key}/tasks/` | Implemented (`CreateTaskModal`) |
 | **Tasks** | Get Task Details | `GET /api/v1/workspaces/{slug}/projects/{key}/tasks/{task_number}` | Implemented (`TaskDetailModal`) |
 | **Tasks** | State Transitions & Updates | `PATCH /api/v1/workspaces/{slug}/projects/{key}/tasks/{task_number}` | Implemented (Quick Advance & Dialog) |
+| **Tasks** | Activity Audit History | `GET /api/v1/workspaces/{slug}/projects/{key}/tasks/{task_number}/activities/` | Implemented (`TaskDetailModal` Activity Tab) |
+| **Comments** | List Task Comments | `GET /api/v1/workspaces/{slug}/projects/{key}/tasks/{task_number}/comments/` | Implemented (`TaskDetailModal` Comments Tab) |
+| **Comments** | Add Task Comment | `POST /api/v1/workspaces/{slug}/projects/{key}/tasks/{task_number}/comments/` | Implemented (`commentService`) |
+| **Comments** | Delete Task Comment | `DELETE .../tasks/{task_number}/comments/{comment_id}` | Implemented (Role-Checked) |
 | **Navigation** | Dedicated Tasks & Kanban View | Route `/tasks` | Implemented (`TasksOverviewView`) |
 
 ---
