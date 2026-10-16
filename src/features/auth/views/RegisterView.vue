@@ -45,13 +45,8 @@ async function handleSubmit() {
       password: password.value,
     })
 
-    // 2. Automatically log in upon successful registration
-    await authStore.login({
-      email: email.value,
-      password: password.value,
-    })
-
-    router.push('/workspaces')
+    // 2. Redirect to verification view where OTP code is entered
+    router.push(`/verify-email?email=${encodeURIComponent(email.value.trim())}`)
   } catch (err: unknown) {
     errorMessage.value = formatApiError(err)
   } finally {
@@ -61,17 +56,17 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 flex items-center justify-center p-3 sm:p-4">
-    <div class="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-5 sm:p-8 space-y-5 sm:space-y-6">
+  <div class="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-3 sm:p-4 transition-colors">
+    <div class="max-w-md w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-5 sm:p-8 space-y-5 sm:space-y-6">
       <!-- Header -->
       <div class="text-center space-y-2">
         <div class="flex justify-center mb-2">
           <AppLogo size="lg" />
         </div>
-        <h1 class="text-2xl font-bold tracking-tight text-slate-900">
+        <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
           Create an Account
         </h1>
-        <p class="text-sm text-slate-500">
+        <p class="text-sm text-slate-500 dark:text-slate-400">
           Get started with your collaborative workspace
         </p>
       </div>
@@ -79,9 +74,9 @@ async function handleSubmit() {
       <!-- Error Alert -->
       <div
         v-if="errorMessage"
-        class="p-3.5 bg-rose-50 border border-rose-200 rounded-lg text-sm text-rose-700 flex items-start gap-2.5"
+        class="p-3.5 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 rounded-lg text-sm text-rose-700 dark:text-rose-300 flex items-start gap-2.5"
       >
-        <LucideAlertCircle class="w-5 h-5 shrink-0 text-rose-500 mt-0.5" />
+        <LucideAlertCircle class="w-5 h-5 shrink-0 text-rose-500 dark:text-rose-400 mt-0.5" />
         <span class="leading-snug">{{ errorMessage }}</span>
       </div>
 
@@ -133,11 +128,11 @@ async function handleSubmit() {
       </form>
 
       <!-- Footer -->
-      <div class="text-center text-sm text-slate-500">
+      <div class="text-center text-sm text-slate-500 dark:text-slate-400">
         Already have an account?
         <router-link
           to="/login"
-          class="font-medium text-indigo-600 hover:text-indigo-500 hover:underline"
+          class="font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 hover:underline"
         >
           Sign in
         </router-link>

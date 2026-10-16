@@ -5,7 +5,11 @@ export interface ApiErrorDetail {
 }
 
 export interface ApiErrorResponse {
+  error?: boolean
+  status_code?: number
+  path?: string
   detail?: string | ApiErrorDetail[]
+  errors?: ApiErrorDetail[]
   message?: string
 }
 

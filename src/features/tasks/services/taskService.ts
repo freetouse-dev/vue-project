@@ -1,28 +1,73 @@
 import apiClient from '@/services/apiClient'
 import type {
+  PaginatedResponse,
   Task,
   TaskCreatePayload,
   TaskFilterParams,
   TaskUpdatePayload,
 } from '@/features/tasks/types/task.types'
+import type { TaskActivity } from '@/features/tasks/types/activity.types'
 
 export const taskService = {
   /**
-   * Fetches all tasks for a project with optional status and priority query filters
+   * Fetches tasks for a project and normalizes to an array of Task objects.
+   * Seamlessly handles both new PaginatedResponse and legacy raw array payloads.
    */
   async getTasks(
     workspaceSlug: string,
     projectKey: string,
     params?: TaskFilterParams
   ): Promise<Task[]> {
-    const response = await apiClient.get<Task[]>(
+    const paginated = await this.getTasksPaginated(workspaceSlug, projectKey, params)
+    return paginated.items
+  },
+
+  /**
+   * Fetches paginated tasks with search, filtering, sorting, and pagination metadata
+   */
+  async getTasksPaginated(
+    workspaceSlug: string,
+    projectKey: string,
+    params?: TaskFilterParams
+  ): Promise<PaginatedResponse<Task>> {
+    const response = await apiClient.get<PaginatedResponse<Task> | Task[]>(
       `/workspaces/${encodeURIComponent(workspaceSlug)}/projects/${encodeURIComponent(projectKey)}/tasks/`,
       {
         params: {
+          search: params?.search || undefined,
           status: params?.status || undefined,
           priority: params?.priority || undefined,
+          sort_by: params?.sort_by || undefined,
+          sort_order: params?.sort_order || undefined,
+          page: params?.page || undefined,
+          size: params?.size || undefined,
         },
       }
+    )
+
+    if (Array.isArray(response.data)) {
+      return {
+        items: response.data,
+        total: response.data.length,
+        page: 1,
+        size: response.data.length,
+        total_pages: 1,
+      }
+    }
+
+    return response.data
+  },
+
+  /**
+   * Fetches the audit trail / activity history for a task
+   */
+  async getTaskActivities(
+    workspaceSlug: string,
+    projectKey: string,
+    taskNumber: number
+  ): Promise<TaskActivity[]> {
+    const response = await apiClient.get<TaskActivity[]>(
+      `/workspaces/${encodeURIComponent(workspaceSlug)}/projects/${encodeURIComponent(projectKey)}/tasks/${taskNumber}/activities/`
     )
     return response.data
   },

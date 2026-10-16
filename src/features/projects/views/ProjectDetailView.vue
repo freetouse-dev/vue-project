@@ -3,9 +3,11 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { projectService } from '@/features/projects/services/projectService'
 import { taskService } from '@/features/tasks/services/taskService'
+import { reportService } from '@/features/projects/services/reportService'
 import { formatApiError } from '@/services/apiClient'
 import type { Project, ProjectMember } from '@/features/projects/types/project.types'
 import type { Task, TaskPriority, TaskStatus } from '@/features/tasks/types/task.types'
+import type { ProjectDashboardResponse } from '@/features/projects/types/report.types'
 import AddProjectMemberModal from '@/features/projects/components/AddProjectMemberModal.vue'
 import CreateTaskModal from '@/features/tasks/components/CreateTaskModal.vue'
 import TaskDetailModal from '@/features/tasks/components/TaskDetailModal.vue'
@@ -36,6 +38,10 @@ import {
   LucideLayoutGrid,
   LucideList,
   LucideCheckSquare,
+  LucideSearch,
+  LucideArrowUpDown,
+  LucideAlertTriangle,
+  LucideTrendingUp,
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -46,6 +52,7 @@ const key = computed(() => route.params.key as string)
 const project = ref<Project | null>(null)
 const members = ref<ProjectMember[]>([])
 const tasks = ref<Task[]>([])
+const dashboard = ref<ProjectDashboardResponse | null>(null)
 const isLoading = ref(true)
 const isLoadingTasks = ref(false)
 const errorMessage = ref('')
@@ -60,9 +67,16 @@ const underDevFeature = ref('')
 const activeTab = ref<'overview' | 'members' | 'tasks'>('overview')
 const viewMode = ref<'kanban' | 'list'>('kanban')
 
-// Filters
+// Search, Sort, Filters, and Pagination
+const searchQuery = ref('')
 const filterStatus = ref<TaskStatus | ''>('')
 const filterPriority = ref<TaskPriority | ''>('')
+const sortBy = ref('task_number')
+const sortOrder = ref<'asc' | 'desc'>('asc')
+const currentPage = ref(1)
+const pageSize = ref(20)
+const totalTasks = ref(0)
+const totalPages = ref(1)
 
 const kanbanColumns = KANBAN_PRIMARY_COLUMNS
 
@@ -76,15 +90,34 @@ const filterPriorityOptions = [
   ...TASK_PRIORITY_SELECT_OPTIONS,
 ]
 
-// Progress calculations
-const completedTasksCount = computed(() => tasks.value.filter((t) => t.status === 'DONE').length)
-const inProgressTasksCount = computed(
-  () => tasks.value.filter((t) => t.status === 'IN_PROGRESS' || t.status === 'IN_REVIEW').length
-)
+const sortByOptions = [
+  { value: 'task_number', label: 'Key' },
+  { value: 'title', label: 'Title' },
+  { value: 'status', label: 'Status' },
+  { value: 'priority', label: 'Priority' },
+  { value: 'due_date', label: 'Due Date' },
+  { value: 'created_at', label: 'Created' },
+]
+
+const completedTasksCount = computed(() => {
+  if (dashboard.value) return dashboard.value.completed_tasks
+  return tasks.value.filter((t) => t.status === 'DONE').length
+})
+
 const progressPercentage = computed(() => {
+  if (dashboard.value) return Math.round(dashboard.value.completion_rate_percentage)
   if (tasks.value.length === 0) return 0
   return Math.round((completedTasksCount.value / tasks.value.length) * 100)
 })
+
+async function loadDashboard() {
+  if (!slug.value || !key.value) return
+  try {
+    dashboard.value = await reportService.getProjectDashboard(slug.value, key.value)
+  } catch {
+    // Ignore non-fatal dashboard loading errors
+  }
+}
 
 async function loadProjectData() {
   if (!slug.value || !key.value) return
@@ -92,14 +125,14 @@ async function loadProjectData() {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    const [projectData, membersData, tasksData] = await Promise.all([
+    const [projectData, membersData] = await Promise.all([
       projectService.getProject(slug.value, key.value),
       projectService.getProjectMembers(slug.value, key.value),
-      taskService.getTasks(slug.value, key.value).catch(() => []),
     ])
     project.value = projectData
     members.value = membersData
-    tasks.value = tasksData
+
+    await Promise.all([loadTasks(), loadDashboard()])
   } catch (err: unknown) {
     errorMessage.value = formatApiError(err)
   } finally {
@@ -111,10 +144,18 @@ async function loadTasks() {
   if (!slug.value || !key.value) return
   isLoadingTasks.value = true
   try {
-    tasks.value = await taskService.getTasks(slug.value, key.value, {
+    const res = await taskService.getTasksPaginated(slug.value, key.value, {
+      search: searchQuery.value.trim() || undefined,
       status: filterStatus.value || undefined,
       priority: filterPriority.value || undefined,
+      sort_by: sortBy.value,
+      sort_order: sortOrder.value,
+      page: currentPage.value,
+      size: pageSize.value,
     })
+    tasks.value = res.items
+    totalTasks.value = res.total
+    totalPages.value = res.total_pages
   } catch (err: unknown) {
     errorMessage.value = formatApiError(err)
   } finally {
@@ -122,8 +163,37 @@ async function loadTasks() {
   }
 }
 
+function toggleSortOrder() {
+  sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+}
+
+function handlePageChange(newPage: number) {
+  if (newPage < 1 || newPage > totalPages.value) return
+  currentPage.value = newPage
+  loadTasks()
+}
+
+// Watch filters & search query
+let searchTimeout: ReturnType<typeof setTimeout> | null = null
+watch(
+  () => searchQuery.value,
+  () => {
+    if (searchTimeout) clearTimeout(searchTimeout)
+    searchTimeout = setTimeout(() => {
+      currentPage.value = 1
+      loadTasks()
+    }, 300)
+  }
+)
+
+watch([filterStatus, filterPriority, sortBy, sortOrder], () => {
+  currentPage.value = 1
+  loadTasks()
+})
+
 function handleTaskCreated(newTask: Task) {
   tasks.value.unshift(newTask)
+  loadDashboard()
 }
 
 function handleTaskUpdated(updatedTask: Task) {
@@ -134,6 +204,7 @@ function handleTaskUpdated(updatedTask: Task) {
   if (selectedTask.value?.id === updatedTask.id) {
     selectedTask.value = updatedTask
   }
+  loadDashboard()
 }
 
 async function handleQuickStatus(task: Task, newStatus: TaskStatus) {
@@ -395,142 +466,244 @@ watch([filterStatus, filterPriority], () => {
       </div>
 
       <!-- Tab Content: Overview -->
-      <div v-if="activeTab === 'overview'" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- Main Details Column -->
-        <div class="md:col-span-2 space-y-6">
-          <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-xs space-y-4 transition-colors">
-            <h2 class="text-base font-bold text-slate-900 dark:text-white">About this Project</h2>
-            <p class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
-              {{ project.description || 'No description provided for this project.' }}
-            </p>
-
-            <div class="pt-4 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
-                <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Project Key</span>
-                <p class="text-base font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5">{{ project.key }}</p>
-              </div>
-              <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
-                <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Status</span>
-                <p class="text-base font-semibold text-slate-800 dark:text-slate-200 mt-0.5">{{ project.status }}</p>
-              </div>
-              <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
-                <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Created On</span>
-                <p class="text-sm font-medium text-slate-800 dark:text-slate-200 mt-0.5">{{ formatDate(project.created_at) }}</p>
-              </div>
-              <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
-                <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Last Updated</span>
-                <p class="text-sm font-medium text-slate-800 dark:text-slate-200 mt-0.5">{{ formatDate(project.updated_at) }}</p>
-              </div>
+      <!-- Tab Content: Overview -->
+      <div v-if="activeTab === 'overview'" class="space-y-6">
+        <!-- Live Dashboard KPI Metric Cards -->
+        <div v-if="dashboard" class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+            <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Tasks</span>
+            <div class="mt-2 flex items-baseline justify-between">
+              <span class="text-2xl font-bold text-slate-900 dark:text-white">{{ dashboard.total_tasks }}</span>
+              <span class="text-xs font-mono text-indigo-600 dark:text-indigo-400 font-semibold">{{ project.key }}</span>
             </div>
           </div>
 
-          <!-- Quick Tasks Preview -->
-          <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-xs space-y-4 transition-colors">
-            <div class="flex items-center justify-between">
-              <div>
-                <h3 class="text-base font-bold text-slate-900 dark:text-white">Recent Tasks</h3>
-                <p class="text-xs text-slate-500 dark:text-slate-400">Tickets in {{ project.name }}</p>
-              </div>
-              <BaseButton size="sm" variant="outline" @click="activeTab = 'tasks'">
-                View All ({{ tasks.length }})
-              </BaseButton>
+          <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+            <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Completed Tasks</span>
+            <div class="mt-2 flex items-baseline justify-between">
+              <span class="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{{ dashboard.completed_tasks }}</span>
+              <span class="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Closed</span>
             </div>
+          </div>
 
-            <div v-if="tasks.length > 0" class="divide-y divide-slate-100 dark:divide-slate-800">
-              <div
-                v-for="task in tasks.slice(0, 4)"
-                :key="task.id"
-                class="py-3 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-slate-800/50 rounded-lg px-2 -mx-2 transition-colors cursor-pointer"
-                @click="openTaskDetail(task)"
+          <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+            <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Completion Rate</span>
+            <div class="mt-2 flex items-baseline justify-between">
+              <span class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{{ dashboard.completion_rate_percentage }}%</span>
+              <LucideTrendingUp class="w-4 h-4 text-indigo-500" />
+            </div>
+          </div>
+
+          <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+            <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Overdue Tasks</span>
+            <div class="mt-2 flex items-baseline justify-between">
+              <span
+                class="text-2xl font-bold"
+                :class="dashboard.overdue_tasks > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'"
               >
-                <div class="flex items-center gap-3 min-w-0">
-                  <span class="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-100 dark:border-indigo-900 shrink-0">
-                    {{ task.ticket_key }}
-                  </span>
-                  <div class="min-w-0">
-                    <h4 class="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{{ task.title }}</h4>
-                    <p class="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-2 mt-0.5">
-                      <span>{{ task.status }}</span>
-                      <span v-if="task.assignee">• {{ task.assignee.full_name }}</span>
-                    </p>
-                  </div>
-                </div>
-
-                <span
-                  class="text-[11px] font-semibold px-2 py-0.5 rounded-full border shrink-0 inline-flex items-center gap-1.5"
-                  :class="getTaskPriorityConfig(task.priority).badgeClass"
-                >
-                  <span class="w-1.5 h-1.5 rounded-full" :class="getTaskPriorityConfig(task.priority).dotClass"></span>
-                  {{ task.priority }}
-                </span>
-              </div>
-            </div>
-
-            <div v-else class="py-6 text-center text-xs text-slate-400 dark:text-slate-500">
-              No tasks created yet.
+                {{ dashboard.overdue_tasks }}
+              </span>
+              <LucideAlertTriangle v-if="dashboard.overdue_tasks > 0" class="w-4 h-4 text-rose-500" />
+              <span v-else class="text-xs text-emerald-600 dark:text-emerald-400 font-medium">On Schedule</span>
             </div>
           </div>
         </div>
 
-        <!-- Sidebar Column: Task Summary Widget -->
-        <div class="space-y-6">
-          <div class="bg-gradient-to-br from-indigo-50/60 via-white to-sky-50/60 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950/40 rounded-2xl border border-indigo-100 dark:border-slate-800 p-6 shadow-xs space-y-4 transition-colors">
-            <div class="flex items-center justify-between">
-              <div class="w-10 h-10 rounded-xl bg-indigo-600 dark:bg-indigo-500 text-white flex items-center justify-center shadow-md">
-                <LucideCheckSquare class="w-5 h-5" />
-              </div>
-              <span class="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-full border border-indigo-100 dark:border-indigo-900 shadow-2xs">
-                {{ progressPercentage }}% Done
-              </span>
-            </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <!-- Main Details Column -->
+          <div class="md:col-span-2 space-y-6">
+            <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-xs space-y-4 transition-colors">
+              <h2 class="text-base font-bold text-slate-900 dark:text-white">About this Project</h2>
+              <p class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+                {{ project.description || 'No description provided for this project.' }}
+              </p>
 
-            <div>
-              <h3 class="text-base font-bold text-slate-900 dark:text-white">Task Completion</h3>
-              <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Track work items and milestone progress</p>
-            </div>
-
-            <!-- Progress bar -->
-            <div class="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
-              <div
-                class="bg-indigo-600 dark:bg-indigo-500 h-full rounded-full transition-all duration-300"
-                :style="{ width: `${progressPercentage}%` }"
-              ></div>
-            </div>
-
-            <!-- Stat Breakdown -->
-            <div class="grid grid-cols-3 gap-2 pt-2 border-t border-indigo-50 dark:border-slate-800 text-center">
-              <div class="p-2 bg-white dark:bg-slate-800/80 rounded-lg border border-slate-100 dark:border-slate-700">
-                <span class="text-[11px] text-slate-400 dark:text-slate-500 font-medium">Total</span>
-                <p class="text-sm font-bold text-slate-800 dark:text-slate-200">{{ tasks.length }}</p>
-              </div>
-              <div class="p-2 bg-white dark:bg-slate-800/80 rounded-lg border border-slate-100 dark:border-slate-700">
-                <span class="text-[11px] text-slate-400 dark:text-slate-500 font-medium">In Progress</span>
-                <p class="text-sm font-bold text-indigo-600 dark:text-indigo-400">{{ inProgressTasksCount }}</p>
-              </div>
-              <div class="p-2 bg-white dark:bg-slate-800/80 rounded-lg border border-slate-100 dark:border-slate-700">
-                <span class="text-[11px] text-slate-400 dark:text-slate-500 font-medium">Done</span>
-                <p class="text-sm font-bold text-emerald-600 dark:text-emerald-400">{{ completedTasksCount }}</p>
+              <div class="pt-4 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                  <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Project Key</span>
+                  <p class="text-base font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5">{{ project.key }}</p>
+                </div>
+                <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                  <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Status</span>
+                  <p class="text-base font-semibold text-slate-800 dark:text-slate-200 mt-0.5">{{ project.status }}</p>
+                </div>
+                <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                  <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Created On</span>
+                  <p class="text-sm font-medium text-slate-800 dark:text-slate-200 mt-0.5">{{ formatDate(project.created_at) }}</p>
+                </div>
+                <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                  <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Last Updated</span>
+                  <p class="text-sm font-medium text-slate-800 dark:text-slate-200 mt-0.5">{{ formatDate(project.updated_at) }}</p>
+                </div>
               </div>
             </div>
 
-            <BaseButton
-              size="sm"
-              class="w-full"
-              @click="showCreateTaskModal = true"
-            >
-              <LucidePlus class="w-4 h-4" />
-              <span>Create New Task</span>
-            </BaseButton>
+            <!-- Quick Tasks Preview -->
+            <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-xs space-y-4 transition-colors">
+              <div class="flex items-center justify-between">
+                <div>
+                  <h3 class="text-base font-bold text-slate-900 dark:text-white">Recent Tasks</h3>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">Tickets in {{ project.name }}</p>
+                </div>
+                <BaseButton size="sm" variant="outline" @click="activeTab = 'tasks'">
+                  View All ({{ totalTasks || tasks.length }})
+                </BaseButton>
+              </div>
+
+              <div v-if="tasks.length > 0" class="divide-y divide-slate-100 dark:divide-slate-800">
+                <div
+                  v-for="task in tasks.slice(0, 4)"
+                  :key="task.id"
+                  class="py-3 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-slate-800/50 rounded-lg px-2 -mx-2 transition-colors cursor-pointer"
+                  @click="openTaskDetail(task)"
+                >
+                  <div class="flex items-center gap-3 min-w-0">
+                    <span class="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-100 dark:border-indigo-900 shrink-0">
+                      {{ task.ticket_key }}
+                    </span>
+                    <div class="min-w-0">
+                      <h4 class="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{{ task.title }}</h4>
+                      <p class="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-2 mt-0.5">
+                        <span>{{ task.status }}</span>
+                        <span v-if="task.assignee">• {{ task.assignee.full_name }}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <span
+                    class="text-[11px] font-semibold px-2 py-0.5 rounded-full border shrink-0 inline-flex items-center gap-1.5"
+                    :class="getTaskPriorityConfig(task.priority).badgeClass"
+                  >
+                    <span class="w-1.5 h-1.5 rounded-full" :class="getTaskPriorityConfig(task.priority).dotClass"></span>
+                    {{ task.priority }}
+                  </span>
+                </div>
+              </div>
+
+              <div v-else class="py-6 text-center text-xs text-slate-400 dark:text-slate-500">
+                No tasks created yet.
+              </div>
+            </div>
+          </div>
+
+          <!-- Sidebar Column: Task Summary & Status Breakdown -->
+          <div class="space-y-6">
+            <div class="bg-gradient-to-br from-indigo-50/60 via-white to-sky-50/60 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950/40 rounded-2xl border border-indigo-100 dark:border-slate-800 p-6 shadow-xs space-y-4 transition-colors">
+              <div class="flex items-center justify-between">
+                <div class="w-10 h-10 rounded-xl bg-indigo-600 dark:bg-indigo-500 text-white flex items-center justify-center shadow-md">
+                  <LucideCheckSquare class="w-5 h-5" />
+                </div>
+                <span class="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-full border border-indigo-100 dark:border-indigo-900 shadow-2xs">
+                  {{ progressPercentage }}% Done
+                </span>
+              </div>
+
+              <div>
+                <h3 class="text-base font-bold text-slate-900 dark:text-white">Task Completion</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Track work items and milestone progress</p>
+              </div>
+
+              <!-- Progress bar -->
+              <div class="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                <div
+                  class="bg-indigo-600 dark:bg-indigo-500 h-full rounded-full transition-all duration-300"
+                  :style="{ width: `${progressPercentage}%` }"
+                ></div>
+              </div>
+
+              <!-- Status Breakdown Widget -->
+              <div v-if="dashboard" class="pt-3 border-t border-indigo-50 dark:border-slate-800 space-y-2">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Status Breakdown
+                </span>
+                <div class="space-y-1.5">
+                  <div
+                    v-for="(count, st) in dashboard.tasks_by_status"
+                    :key="st"
+                    class="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-white/70 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60"
+                  >
+                    <span class="font-medium text-slate-700 dark:text-slate-300">
+                      {{ getTaskStatusConfig(st as TaskStatus).label }}
+                    </span>
+                    <span class="font-bold text-slate-900 dark:text-slate-100">
+                      {{ count }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <BaseButton
+                size="sm"
+                class="w-full"
+                @click="showCreateTaskModal = true"
+              >
+                <LucidePlus class="w-4 h-4" />
+                <span>Create New Task</span>
+              </BaseButton>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- Tab Content: Tasks & Board -->
       <div v-else-if="activeTab === 'tasks'" class="space-y-4">
-        <!-- Controls Bar: View mode, BaseSelect filters, new task button -->
-        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors">
-          <!-- View Toggle & Filters -->
-          <div class="flex items-center gap-3 flex-wrap">
+        <!-- Controls Bar: Search, Sort, BaseSelect filters, view mode, new task button -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-3 transition-colors">
+          <!-- Left: Search, Filters & Sort -->
+          <div class="flex items-center gap-2.5 flex-wrap flex-1">
+            <!-- Search Bar -->
+            <div class="relative w-full sm:w-56">
+              <LucideSearch class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                v-model="searchQuery"
+                type="text"
+                placeholder="Search tasks..."
+                class="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors"
+              />
+            </div>
+
+            <!-- Priority Filter -->
+            <div class="w-36">
+              <BaseSelect
+                v-model="filterPriority"
+                :options="filterPriorityOptions"
+                placeholder="All Priorities"
+                size="sm"
+              />
+            </div>
+
+            <!-- Status Filter -->
+            <div class="w-36">
+              <BaseSelect
+                v-model="filterStatus"
+                :options="filterStatusOptions"
+                placeholder="All Statuses"
+                size="sm"
+              />
+            </div>
+
+            <!-- Sort By -->
+            <div class="w-32">
+              <BaseSelect
+                v-model="sortBy"
+                :options="sortByOptions"
+                size="sm"
+              />
+            </div>
+
+            <!-- Sort Direction Toggle -->
+            <button
+              type="button"
+              class="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-indigo-600 transition-colors cursor-pointer"
+              :title="sortOrder === 'asc' ? 'Ascending' : 'Descending'"
+              @click="toggleSortOrder"
+            >
+              <LucideArrowUpDown class="w-4 h-4" />
+            </button>
+          </div>
+
+          <!-- Right: View Mode & Add Task -->
+          <div class="flex items-center gap-2.5 justify-end shrink-0">
             <!-- View Mode Switcher -->
             <div class="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-1">
               <button
@@ -553,29 +726,6 @@ watch([filterStatus, filterPriority], () => {
               </button>
             </div>
 
-            <!-- Priority Filter (BaseSelect) -->
-            <div class="w-40">
-              <BaseSelect
-                v-model="filterPriority"
-                :options="filterPriorityOptions"
-                placeholder="All Priorities"
-                size="sm"
-              />
-            </div>
-
-            <!-- Status Filter (BaseSelect) -->
-            <div class="w-40">
-              <BaseSelect
-                v-model="filterStatus"
-                :options="filterStatusOptions"
-                placeholder="All Statuses"
-                size="sm"
-              />
-            </div>
-          </div>
-
-          <!-- Add Task Button -->
-          <div class="flex items-center justify-end gap-2">
             <BaseButton size="sm" @click="showCreateTaskModal = true">
               <LucidePlus class="w-4 h-4" />
               <span>Add Task</span>
@@ -690,6 +840,37 @@ watch([filterStatus, filterPriority], () => {
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          <!-- Pagination Footer -->
+          <div
+            v-if="totalTasks > 0"
+            class="py-3 px-6 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400"
+          >
+            <span>
+              Showing {{ (currentPage - 1) * pageSize + 1 }} to {{ Math.min(currentPage * pageSize, totalTasks) }} of {{ totalTasks }} tasks
+            </span>
+            <div class="flex items-center gap-2">
+              <BaseButton
+                size="sm"
+                variant="outline"
+                :disabled="currentPage <= 1"
+                @click="handlePageChange(currentPage - 1)"
+              >
+                Previous
+              </BaseButton>
+              <span class="font-medium text-slate-700 dark:text-slate-300 px-2">
+                Page {{ currentPage }} of {{ totalPages }}
+              </span>
+              <BaseButton
+                size="sm"
+                variant="outline"
+                :disabled="currentPage >= totalPages"
+                @click="handlePageChange(currentPage + 1)"
+              >
+                Next
+              </BaseButton>
+            </div>
           </div>
 
           <div v-else class="p-12 text-center text-slate-400 dark:text-slate-500 space-y-2">
