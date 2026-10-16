@@ -22,13 +22,13 @@ const props = withDefaults(
 const variantClasses = computed(() => {
   switch (props.variant) {
     case 'secondary':
-      return 'bg-slate-100 text-slate-800 hover:bg-slate-200 focus:ring-slate-400'
+      return 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 focus:ring-slate-400 dark:focus:ring-slate-600'
     case 'danger':
-      return 'bg-rose-600 text-white hover:bg-rose-700 focus:ring-rose-500 shadow-xs'
+      return 'bg-rose-600 dark:bg-rose-600 text-white hover:bg-rose-700 dark:hover:bg-rose-700 focus:ring-rose-500 shadow-xs'
     case 'outline':
-      return 'border border-slate-300 text-slate-700 hover:bg-slate-50 focus:ring-indigo-500'
+      return 'border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 focus:ring-indigo-500'
     case 'ghost':
-      return 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus:ring-slate-300'
+      return 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white focus:ring-slate-300'
     case 'primary':
     default:
       return 'bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500 shadow-xs'
@@ -52,7 +52,7 @@ const sizeClasses = computed(() => {
   <button
     :type="type"
     :disabled="disabled || loading"
-    class="inline-flex items-center justify-center font-medium transition-colors focus:outline-hidden focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+    class="inline-flex items-center justify-center font-medium transition-colors focus:outline-hidden focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
     :class="[variantClasses, sizeClasses]"
   >
     <LoadingSpinner

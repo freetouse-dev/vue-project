@@ -120,22 +120,22 @@ function getRoleBadgeColor(role: string) {
 <template>
   <div class="space-y-6">
     <!-- Breadcrumb & Back button -->
-    <div class="flex items-center gap-2 text-sm text-slate-500">
+    <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
       <router-link
         to="/workspaces"
-        class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors"
+        class="inline-flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
       >
         <LucideChevronLeft class="w-4 h-4" />
         <span>Workspaces</span>
       </router-link>
       <span>/</span>
-      <span class="font-medium text-slate-800">{{ workspace?.name || slug }}</span>
+      <span class="font-medium text-slate-800 dark:text-slate-200">{{ workspace?.name || slug }}</span>
     </div>
 
     <!-- Error State -->
     <div
       v-if="errorMessage"
-      class="p-4 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700 flex items-center justify-between"
+      class="p-4 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 rounded-xl text-sm text-rose-700 dark:text-rose-300 flex items-center justify-between"
     >
       <span>{{ errorMessage }}</span>
       <BaseButton size="sm" variant="outline" @click="loadWorkspaceData">
@@ -146,7 +146,7 @@ function getRoleBadgeColor(role: string) {
     <!-- Loading State -->
     <div
       v-if="isLoading && !workspace"
-      class="py-20 flex flex-col items-center justify-center text-slate-400 gap-3"
+      class="py-20 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 gap-3"
     >
       <LoadingSpinner size="lg" />
       <span class="text-sm">Loading workspace details...</span>
@@ -154,26 +154,26 @@ function getRoleBadgeColor(role: string) {
 
     <div v-else-if="workspace" class="space-y-6">
       <!-- Workspace Header Banner -->
-      <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-6 shadow-xs transition-colors">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div class="flex items-start gap-3 sm:gap-4 min-w-0">
-            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold text-lg sm:text-xl shadow-md shrink-0">
+            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-indigo-600 dark:bg-indigo-500 text-white flex items-center justify-center font-bold text-lg sm:text-xl shadow-md shrink-0">
               {{ workspace.name.slice(0, 2).toUpperCase() }}
             </div>
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
-                <h1 class="text-xl sm:text-2xl font-bold text-slate-900 truncate">
+                <h1 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white truncate">
                   {{ workspace.name }}
                 </h1>
-                <span class="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 font-mono text-slate-600 border border-slate-200">
+                <span class="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 font-mono text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                   {{ workspace.slug }}
                 </span>
                 <StatusBadge status="implemented" label="API Active" />
               </div>
-              <p class="mt-1 text-xs sm:text-sm text-slate-600 max-w-2xl line-clamp-2 sm:line-clamp-none">
+              <p class="mt-1 text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-2xl line-clamp-2 sm:line-clamp-none">
                 {{ workspace.description || 'No description provided.' }}
               </p>
-              <div class="mt-2.5 sm:mt-3 flex items-center gap-3 sm:gap-4 text-xs text-slate-400 flex-wrap">
+              <div class="mt-2.5 sm:mt-3 flex items-center gap-3 sm:gap-4 text-xs text-slate-400 dark:text-slate-500 flex-wrap">
                 <span class="flex items-center gap-1">
                   <LucideCalendar class="w-3.5 h-3.5" />
                   Created {{ formatDate(workspace.created_at) }}
@@ -187,7 +187,7 @@ function getRoleBadgeColor(role: string) {
           </div>
 
           <!-- Actions -->
-          <div class="flex items-center gap-2 w-full sm:w-auto justify-start sm:justify-end shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+          <div class="flex items-center gap-2 w-full sm:w-auto justify-start sm:justify-end shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800">
             <BaseButton
               variant="outline"
               size="sm"
@@ -209,16 +209,16 @@ function getRoleBadgeColor(role: string) {
           </div>
         </div>
 
-        <!-- Navigation Tabs (No horizontal scrolling: switches from text to icons on small screens) -->
-        <div class="mt-6 flex border-b border-slate-200 gap-1 sm:gap-6 text-sm font-medium">
+        <!-- Navigation Tabs -->
+        <div class="mt-6 flex border-b border-slate-200 dark:border-slate-800 gap-1 sm:gap-6 text-sm font-medium">
           <!-- Projects Tab -->
           <button
             type="button"
             class="pb-3 border-b-2 flex items-center justify-center sm:justify-start gap-2 cursor-pointer transition-colors flex-1 sm:flex-initial px-2 sm:px-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 rounded-t-md"
             :class="[
               activeTab === 'overview'
-                ? 'border-indigo-600 text-indigo-600 font-semibold'
-                : 'border-transparent text-slate-500 hover:text-slate-800',
+                ? 'border-indigo-600 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400 font-semibold'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200',
             ]"
             title="Projects & Overview"
             aria-label="Projects & Overview"
@@ -228,7 +228,7 @@ function getRoleBadgeColor(role: string) {
             <span class="hidden sm:inline">Projects</span>
             <span
               class="text-[11px] sm:text-xs px-1.5 py-0.5 rounded-full font-medium"
-              :class="activeTab === 'overview' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'"
+              :class="activeTab === 'overview' ? 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'"
             >
               {{ projects.length }}
             </span>
@@ -240,8 +240,8 @@ function getRoleBadgeColor(role: string) {
             class="pb-3 border-b-2 flex items-center justify-center sm:justify-start gap-2 cursor-pointer transition-colors flex-1 sm:flex-initial px-2 sm:px-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 rounded-t-md"
             :class="[
               activeTab === 'members'
-                ? 'border-indigo-600 text-indigo-600 font-semibold'
-                : 'border-transparent text-slate-500 hover:text-slate-800',
+                ? 'border-indigo-600 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400 font-semibold'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200',
             ]"
             title="Team Members"
             aria-label="Team Members"
@@ -251,7 +251,7 @@ function getRoleBadgeColor(role: string) {
             <span class="hidden sm:inline">Team Members</span>
             <span
               class="text-[11px] sm:text-xs px-1.5 py-0.5 rounded-full font-medium"
-              :class="activeTab === 'members' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'"
+              :class="activeTab === 'members' ? 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'"
             >
               {{ members.length }}
             </span>
@@ -263,8 +263,8 @@ function getRoleBadgeColor(role: string) {
             class="pb-3 border-b-2 flex items-center justify-center sm:justify-start gap-2 cursor-pointer transition-colors flex-1 sm:flex-initial px-2 sm:px-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 rounded-t-md"
             :class="[
               activeTab === 'settings'
-                ? 'border-indigo-600 text-indigo-600 font-semibold'
-                : 'border-transparent text-slate-500 hover:text-slate-800',
+                ? 'border-indigo-600 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400 font-semibold'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200',
             ]"
             title="Management"
             aria-label="Management"
@@ -280,8 +280,8 @@ function getRoleBadgeColor(role: string) {
       <div v-if="activeTab === 'overview'" class="space-y-6">
         <div class="flex items-center justify-between">
           <div>
-            <h2 class="text-lg font-bold text-slate-900">Projects</h2>
-            <p class="text-xs text-slate-500">
+            <h2 class="text-lg font-bold text-slate-900 dark:text-white">Projects</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
               Projects contained within this workspace
             </p>
           </div>
@@ -301,10 +301,10 @@ function getRoleBadgeColor(role: string) {
             v-for="proj in projects"
             :key="proj.id"
             :to="`/workspaces/${workspace.slug}/projects/${proj.key}`"
-            class="group block bg-white rounded-2xl border border-slate-200 p-5 hover:border-indigo-400 hover:shadow-md transition-all relative"
+            class="group block bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md transition-all relative"
           >
             <div class="flex items-start justify-between gap-3">
-              <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm tracking-wider font-mono border border-indigo-100">
+              <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-300 flex items-center justify-center font-bold text-sm tracking-wider font-mono border border-indigo-100 dark:border-indigo-900">
                 {{ proj.key.slice(0, 3) }}
               </div>
               <span
@@ -317,24 +317,24 @@ function getRoleBadgeColor(role: string) {
 
             <div class="mt-3">
               <div class="flex items-center gap-2">
-                <h3 class="font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors text-base truncate">
+                <h3 class="font-semibold text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors text-base truncate">
                   {{ proj.name }}
                 </h3>
-                <span class="text-xs font-mono font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                <span class="text-xs font-mono font-medium text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
                   {{ proj.key }}
                 </span>
               </div>
-              <p class="mt-1.5 text-xs text-slate-500 line-clamp-2 min-h-[2rem]">
+              <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400 line-clamp-2 min-h-[2rem]">
                 {{ proj.description || 'No description provided.' }}
               </p>
             </div>
 
-            <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+            <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-400 dark:text-slate-500">
               <span class="flex items-center gap-1">
                 <LucideCalendar class="w-3.5 h-3.5" />
                 {{ formatDate(proj.created_at) }}
               </span>
-              <span class="inline-flex items-center gap-1 font-medium text-indigo-600 group-hover:translate-x-0.5 transition-transform">
+              <span class="inline-flex items-center gap-1 font-medium text-indigo-600 dark:text-indigo-400 group-hover:translate-x-0.5 transition-transform">
                 <span>View</span>
                 <LucideArrowRight class="w-3.5 h-3.5" />
               </span>
@@ -343,15 +343,15 @@ function getRoleBadgeColor(role: string) {
         </div>
 
         <!-- Empty State -->
-        <div v-else class="bg-white rounded-2xl border border-dashed border-slate-300 p-8 sm:p-12 text-center space-y-4">
-          <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 mx-auto flex items-center justify-center">
+        <div v-else class="bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-8 sm:p-12 text-center space-y-4">
+          <div class="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 mx-auto flex items-center justify-center">
             <LucideFolderKanban class="w-6 h-6" />
           </div>
           <div class="max-w-sm mx-auto">
-            <h3 class="text-base font-semibold text-slate-900">
+            <h3 class="text-base font-semibold text-slate-900 dark:text-white">
               No projects yet
             </h3>
-            <p class="text-xs sm:text-sm text-slate-500 mt-1">
+            <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
               Create your first project in this workspace to organize tasks, track milestones, and assign team members.
             </p>
           </div>
@@ -365,11 +365,11 @@ function getRoleBadgeColor(role: string) {
       </div>
 
       <!-- Tab Content: Members -->
-      <div v-else-if="activeTab === 'members'" class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-        <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+      <div v-else-if="activeTab === 'members'" class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs transition-colors">
+        <div class="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
           <div>
-            <h2 class="text-base font-bold text-slate-900">Workspace Members</h2>
-            <p class="text-xs text-slate-500">
+            <h2 class="text-base font-bold text-slate-900 dark:text-white">Workspace Members</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
               Users who have access to this workspace and its resources
             </p>
           </div>
@@ -383,28 +383,28 @@ function getRoleBadgeColor(role: string) {
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse text-sm">
             <thead>
-              <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
+              <tr class="bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
                 <th class="py-3 px-6 font-semibold">User</th>
                 <th class="py-3 px-6 font-semibold">Email</th>
                 <th class="py-3 px-6 font-semibold">Role</th>
                 <th class="py-3 px-6 font-semibold">Joined Date</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100">
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
               <tr
                 v-for="member in members"
                 :key="member.id"
-                class="hover:bg-slate-50/80 transition-colors"
+                class="hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition-colors"
               >
-                <td class="py-4 px-6 font-medium text-slate-800">
+                <td class="py-4 px-6 font-medium text-slate-800 dark:text-slate-200">
                   <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
+                    <div class="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-bold text-xs">
                       {{ member.user.full_name.slice(0, 2).toUpperCase() }}
                     </div>
                     <span>{{ member.user.full_name }}</span>
                   </div>
                 </td>
-                <td class="py-4 px-6 text-slate-600 font-mono text-xs">
+                <td class="py-4 px-6 text-slate-600 dark:text-slate-400 font-mono text-xs">
                   {{ member.user.email }}
                 </td>
                 <td class="py-4 px-6">
@@ -416,7 +416,7 @@ function getRoleBadgeColor(role: string) {
                     {{ member.role }}
                   </span>
                 </td>
-                <td class="py-4 px-6 text-slate-500 text-xs">
+                <td class="py-4 px-6 text-slate-500 dark:text-slate-400 text-xs">
                   {{ formatDate(member.joined_at) }}
                 </td>
               </tr>
@@ -426,19 +426,19 @@ function getRoleBadgeColor(role: string) {
       </div>
 
       <!-- Tab Content: Settings / Management -->
-      <div v-else-if="activeTab === 'settings'" class="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
+      <div v-else-if="activeTab === 'settings'" class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 transition-colors">
         <div>
-          <h2 class="text-lg font-bold text-slate-900">Workspace Management</h2>
-          <p class="text-xs text-slate-500">
+          <h2 class="text-lg font-bold text-slate-900 dark:text-white">Workspace Management</h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400">
             Manage workspace configuration and lifecycle
           </p>
         </div>
 
-        <div class="space-y-4 pt-4 border-t border-slate-100">
-          <div class="flex items-center justify-between p-4 rounded-xl border border-slate-200 bg-slate-50">
+        <div class="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+          <div class="flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
             <div>
-              <h4 class="text-sm font-semibold text-slate-900">Update Workspace Info</h4>
-              <p class="text-xs text-slate-500">Change workspace display name and description</p>
+              <h4 class="text-sm font-semibold text-slate-900 dark:text-white">Update Workspace Info</h4>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Change workspace display name and description</p>
             </div>
             <BaseButton
               variant="outline"
@@ -450,10 +450,10 @@ function getRoleBadgeColor(role: string) {
             </BaseButton>
           </div>
 
-          <div class="flex items-center justify-between p-4 rounded-xl border border-rose-200 bg-rose-50/50">
+          <div class="flex items-center justify-between p-4 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/20">
             <div>
-              <h4 class="text-sm font-semibold text-rose-900">Delete Workspace</h4>
-              <p class="text-xs text-rose-600">Permanently delete this workspace and all associated resources</p>
+              <h4 class="text-sm font-semibold text-rose-900 dark:text-rose-200">Delete Workspace</h4>
+              <p class="text-xs text-rose-600 dark:text-rose-400">Permanently delete this workspace and all associated resources</p>
             </div>
             <BaseButton
               variant="danger"

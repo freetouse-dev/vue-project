@@ -24,8 +24,9 @@ The application routes are configured in `src/router/index.ts`:
 | `/` | — | Redirect to `/workspaces` | `requiresAuth: true` | `AppLayout.vue` | Root route automatically redirects to the workspaces dashboard. |
 | `/workspaces` | `workspaces` | `src/features/workspaces/views/WorkspaceListView.vue` | `requiresAuth: true` | `AppLayout.vue` | Dashboard displaying all workspaces the user belongs to, with creation modal. |
 | `/workspaces/:slug` | `workspace-detail` | `src/features/workspaces/views/WorkspaceDetailView.vue` | `requiresAuth: true` | `AppLayout.vue` | Detailed view for a specific workspace, showing project cards, team members, and settings. |
-| `/workspaces/:slug/projects/:key` | `project-detail` | `src/features/projects/views/ProjectDetailView.vue` | `requiresAuth: true` | `AppLayout.vue` | Detailed view for a single project inside a workspace, showing members and task roadmap. |
+| `/workspaces/:slug/projects/:key` | `project-detail` | `src/features/projects/views/ProjectDetailView.vue` | `requiresAuth: true` | `AppLayout.vue` | Detailed view for a single project inside a workspace, showing members, Kanban board, and task lists. |
 | `/projects` | `projects` | `src/features/projects/views/ProjectsPlaceholderView.vue` | `requiresAuth: true` | `AppLayout.vue` | Cross-workspace project navigation hub with active workspace switcher. |
+| `/tasks` | `tasks` | `src/features/tasks/views/TasksOverviewView.vue` | `requiresAuth: true` | `AppLayout.vue` | Dedicated global tasks dashboard with Kanban board, list view, and workspace/project switchers. |
 | `/:pathMatch(.*)*` | — | Redirect to `/workspaces` | None | N/A | Catch-all wildcard for invalid URLs; redirects users to `/workspaces`. |
 
 ---
@@ -80,11 +81,23 @@ The application routes are configured in `src/router/index.ts`:
 ### F. Projects Navigation Hub Route (`/projects`)
 - **Route Name**: `projects`
 - **File**: `src/features/projects/views/ProjectsPlaceholderView.vue`
-- **Components Used**: `CreateProjectModal`, `BaseButton`, `StatusBadge`, `LoadingSpinner`
+- **Components Used**: `CreateProjectModal`, `BaseButton`, `BaseSelect`, `StatusBadge`, `LoadingSpinner`
 - **Associated APIs**:
   - `GET /api/v1/workspaces/`
   - `GET /api/v1/workspaces/{slug}/projects/`
 - **Behavior**: Provides a top-level projects dashboard with a dropdown allowing the user to view projects from any workspace they belong to without first opening the workspace detail page.
+
+### G. Tasks & Kanban Board Route (`/tasks`)
+- **Route Name**: `tasks`
+- **File**: `src/features/tasks/views/TasksOverviewView.vue`
+- **Components Used**: `TaskCard`, `CreateTaskModal`, `TaskDetailModal`, `BaseSelect`, `BaseButton`, `LoadingSpinner`
+- **Associated APIs**:
+  - `GET /api/v1/workspaces/`
+  - `GET /api/v1/workspaces/{slug}/projects/`
+  - `GET /api/v1/workspaces/{slug}/projects/{key}/tasks/`
+  - `POST /api/v1/workspaces/{slug}/projects/{key}/tasks/`
+  - `PATCH /api/v1/workspaces/{slug}/projects/{key}/tasks/{task_number}`
+- **Behavior**: Dedicated task management interface with dual view options (Kanban board with status columns and structured List view). Includes workspace and project selectors, priority/status filtering using `BaseSelect`, and real-time task progression.
 
 ---
 
