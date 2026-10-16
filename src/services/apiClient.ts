@@ -57,6 +57,10 @@ export function formatApiError(error: unknown): string {
       }
     }
 
+    if (data?.errors && Array.isArray(data.errors)) {
+      return data.errors.map((d) => d.msg).join(', ')
+    }
+
     if (data?.message) {
       return data.message
     }

@@ -18,6 +18,18 @@ const router = createRouter({
       component: () => import('@/features/auth/views/RegisterView.vue'),
       meta: { guestOnly: true },
     },
+    {
+      path: '/verify-email',
+      name: 'verify-email',
+      component: () => import('@/features/auth/views/VerifyEmailView.vue'),
+      meta: { guestOnly: true },
+    },
+    {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: () => import('@/features/auth/views/ForgotPasswordView.vue'),
+      meta: { guestOnly: true },
+    },
 
     // Authenticated Application Shell
     {
