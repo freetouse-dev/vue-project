@@ -31,6 +31,8 @@ Detailed documentation for every architectural and feature area is organized ins
 | **[`docs/USERS.md`](./docs/USERS.md)** | **User Profiles & Identity** | Current user profile hydration (`/users/me`), avatars, and embedded membership user models. |
 | **[`docs/API_INTEGRATION.md`](./docs/API_INTEGRATION.md)** | **API Integration** | Central Axios client configuration, JWT request interceptor, error formatting, and CORS. |
 | **[`docs/STATE_MANAGEMENT.md`](./docs/STATE_MANAGEMENT.md)** | **State Management** | Pinia stores (`useAuthStore`, `useWorkspaceStore`), data ownership rules, and state resetting. |
+| **[`docs/TASKS.md`](./docs/TASKS.md)** | **Tasks & Kanban (Steps 20–22)** | Jira-style sequential ticket numbering (`MOB-1`), Kanban board columns, lifecycle state machine transitions, and task filtering. |
+| **[`docs/THEMING_AND_DESIGN_SYSTEM.md`](./docs/THEMING_AND_DESIGN_SYSTEM.md)** | **Theming & Design System** | Light/Dark/System themes, status & priority color tokens, custom `BaseSelect`, and Tailwind v4 setup. |
 
 ---
 
@@ -95,4 +97,23 @@ npm run preview
 | **Projects** | List Project Members | `GET /api/v1/workspaces/{slug}/projects/{key}/members` | Implemented |
 | **Projects** | Add Member to Project | `POST /api/v1/workspaces/{slug}/projects/{key}/members` | Implemented |
 | **Projects** | Edit/Delete Project | `PUT/DELETE /projects/{key}` | Under Development Modal |
-| **Tasks** | Task Board & Sprints | Pending FastAPI Step 20 | Under Development Preview |
+| **Tasks** | List & Filter Tasks | `GET /api/v1/workspaces/{slug}/projects/{key}/tasks/` | Implemented (Kanban & List) |
+| **Tasks** | Create Task (Auto-Ticket Key) | `POST /api/v1/workspaces/{slug}/projects/{key}/tasks/` | Implemented (`CreateTaskModal`) |
+| **Tasks** | Get Task Details | `GET /api/v1/workspaces/{slug}/projects/{key}/tasks/{task_number}` | Implemented (`TaskDetailModal`) |
+| **Tasks** | State Transitions & Updates | `PATCH /api/v1/workspaces/{slug}/projects/{key}/tasks/{task_number}` | Implemented (Quick Advance & Dialog) |
+| **Navigation** | Dedicated Tasks & Kanban View | Route `/tasks` | Implemented (`TasksOverviewView`) |
+
+---
+
+## 5. Design System & Theming
+
+The application features a centralized, token-based design system and theme management engine:
+
+- **Theme Modes**: Supports `Light`, `Dark`, and `System` preference modes with real-time OS preference detection (`prefers-color-scheme`).
+- **Persistence**: Theme choice persists across browser sessions in `localStorage` (`pm_theme`).
+- **Custom Select Component (`BaseSelect.vue`)**: Replaced standard native `<select>` controls with a custom dropdown featuring colored status indicators, custom chevrons, keyboard accessibility, and light/dark theme integration.
+- **Harmonized Color System (`src/utils/statusTheme.ts`)**:
+  - **Task Statuses**: Slate (`BACKLOG`), Indigo (`TODO`), Amber (`IN_PROGRESS`), Purple (`IN_REVIEW`), Emerald (`DONE`), Rose (`CANCELLED`).
+  - **Task Priorities**: Slate (`LOW`), Blue (`MEDIUM`), Orange (`HIGH`), Rose/Red (`URGENT`).
+- **Documentation**: See [`docs/THEMING_AND_DESIGN_SYSTEM.md`](./docs/THEMING_AND_DESIGN_SYSTEM.md) for full token guides and component specifications.
+

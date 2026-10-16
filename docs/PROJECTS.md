@@ -114,11 +114,11 @@ sequenceDiagram
 
 ---
 
-## 6. Incomplete / Under-Development Features
+## 6. Project Tasks & Incomplete Operations
 
-The following project features are not yet implemented on the FastAPI backend:
-- `PUT /workspaces/{slug}/projects/{key}` (Update Project Name/Description/Status)
-- `DELETE /workspaces/{slug}/projects/{key}` (Delete Project)
-- Tasks, Kanban Boards, Sprints, and Backlogs
-
+- **Tasks & Kanban Boards**: Fully implemented in **Steps 20–22**! Tasks belong to projects and can be managed directly on the project detail view. See [`docs/TASKS.md`](./TASKS.md) for full details.
+- **Unimplemented Endpoints**:
+  - `PUT /workspaces/{slug}/projects/{key}` (Update Project Details)
+  - `DELETE /workspaces/{slug}/projects/{key}` (Delete Project)
+  
 Clicking "Edit" or "Delete" on `ProjectDetailView.vue` triggers `<UnderDevelopmentModal />`, which explains that these operations are part of upcoming development steps.

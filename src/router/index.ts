@@ -49,6 +49,11 @@ const router = createRouter({
           name: 'projects',
           component: () => import('@/features/projects/views/ProjectsPlaceholderView.vue'),
         },
+        {
+          path: 'tasks',
+          name: 'tasks',
+          component: () => import('@/features/tasks/views/TasksOverviewView.vue'),
+        },
       ],
     },
 

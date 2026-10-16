@@ -75,11 +75,15 @@ src/
 │   │   ├── services/workspaceService.ts # Axios calls to /workspaces/
 │   │   ├── types/workspace.types.ts # TypeScript interfaces for Workspace, WorkspaceMember
 │   │   └── views/                   # WorkspaceListView.vue, WorkspaceDetailView.vue
-│   └── projects/                    # Project management feature
-│       ├── components/              # CreateProjectModal.vue, AddProjectMemberModal.vue
-│       ├── services/projectService.ts # Axios calls to /workspaces/{slug}/projects/
-│       ├── types/project.types.ts   # TypeScript interfaces for Project, ProjectMember
-│       └── views/                   # ProjectDetailView.vue, ProjectsPlaceholderView.vue
+│   ├── projects/                    # Project management feature
+│   │   ├── components/              # CreateProjectModal.vue, AddProjectMemberModal.vue
+│   │   ├── services/projectService.ts # Axios calls to /workspaces/{slug}/projects/
+│   │   ├── types/project.types.ts   # TypeScript interfaces for Project, ProjectMember
+│   │   └── views/                   # ProjectDetailView.vue, ProjectsPlaceholderView.vue
+│   └── tasks/                       # Task management & Kanban feature
+│       ├── components/              # TaskCard.vue, CreateTaskModal.vue, TaskDetailModal.vue
+│       ├── services/taskService.ts  # Axios calls to /workspaces/{slug}/projects/{key}/tasks/
+│       └── types/task.types.ts      # TypeScript interfaces for Task, Status, Priority, Payloads
 ├── router/
 │   └── index.ts                     # Route configuration and authentication guards
 ├── services/

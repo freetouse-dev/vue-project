@@ -24,7 +24,7 @@ function handleWorkspaceCreated(slug: string) {
 </script>
 
 <template>
-  <div class="h-screen flex flex-col bg-slate-50 overflow-hidden">
+  <div class="h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden transition-colors">
     <!-- Top Navbar with mobile hamburger toggle and workspace dropdown -->
     <Navbar
       :is-mobile-menu-open="isMobileMenuOpen"

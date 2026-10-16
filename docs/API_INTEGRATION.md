@@ -6,7 +6,7 @@ This document explains how the **Project Management UI** communicates with the F
 
 ## 1. Overview & Architecture
 
-All network communication with the backend is centralized in **`src/services/apiClient.ts`**. Feature services (`authService.ts`, `workspaceService.ts`, `projectService.ts`) never instantiate Axios directly; they always call methods on the shared `apiClient` instance.
+All network communication with the backend is centralized in **`src/services/apiClient.ts`**. Feature services (`authService.ts`, `workspaceService.ts`, `projectService.ts`, `taskService.ts`) never instantiate Axios directly; they always call methods on the shared `apiClient` instance.
 
 ```mermaid
 flowchart LR

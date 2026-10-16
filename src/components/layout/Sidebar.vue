@@ -38,10 +38,10 @@ function handleNavClick() {
 <template>
   <div class="h-full flex shrink-0">
     <!-- Desktop Sidebar (Hidden on mobile) -->
-    <aside class="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col shrink-0 h-full overflow-hidden select-none">
+    <aside class="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 hidden md:flex flex-col shrink-0 h-full overflow-hidden select-none transition-colors">
       <div class="p-4 flex-1 flex flex-col justify-between min-h-0 overflow-y-auto">
         <nav class="space-y-1">
-          <p class="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+          <p class="px-3 text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-2">
             Workspace
           </p>
 
@@ -51,8 +51,8 @@ function handleNavClick() {
             class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
             :class="[
               route.path.startsWith('/workspaces')
-                ? 'bg-indigo-50 text-indigo-700'
-                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+                ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white',
             ]"
           >
             <LucideBuilding2 class="w-5 h-5 shrink-0" />
@@ -66,56 +66,56 @@ function handleNavClick() {
             class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
             :class="[
               route.path.startsWith('/projects')
-                ? 'bg-indigo-50 text-indigo-700'
-                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+                ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white',
             ]"
           >
             <LucideFolderKanban class="w-5 h-5 shrink-0" />
             <span>Projects</span>
-            <span class="ml-auto text-[10px] bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded font-mono">
-              dev
-            </span>
+            <span class="ml-auto w-2 h-2 rounded-full bg-emerald-500" title="Active feature"></span>
           </router-link>
 
-          <!-- Tasks & Sprints -->
-          <button
-            type="button"
-            class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors cursor-pointer text-left focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
-            @click="openUnderDev('Tasks & Kanban Board')"
+          <!-- Tasks & Board -->
+          <router-link
+            to="/tasks"
+            class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
+            :class="[
+              route.path.startsWith('/tasks')
+                ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white',
+            ]"
           >
             <LucideCheckSquare class="w-5 h-5 shrink-0" />
             <span>Tasks & Board</span>
-            <span class="ml-auto text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
-              soon
-            </span>
-          </button>
+            <span class="ml-auto w-2 h-2 rounded-full bg-emerald-500" title="Active feature"></span>
+          </router-link>
 
-          <p class="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider mt-5 mb-2">
+          <p class="px-3 text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider mt-5 mb-2">
             Management
           </p>
 
           <!-- Settings -->
           <button
             type="button"
-            class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors cursor-pointer text-left focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
+            class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer text-left focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
             @click="openUnderDev('Workspace Settings')"
           >
             <LucideSettings class="w-5 h-5 shrink-0" />
             <span>Settings</span>
-            <span class="ml-auto text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
+            <span class="ml-auto text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded">
               soon
             </span>
           </button>
         </nav>
 
         <!-- Bottom Help card -->
-        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
-          <div class="flex items-center gap-2 text-xs font-semibold text-slate-700">
-            <LucideHelpCircle class="w-4 h-4 text-indigo-500" />
+        <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-800 transition-colors">
+          <div class="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <LucideHelpCircle class="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
             <span>FastAPI Integration</span>
           </div>
-          <p class="mt-1 text-xs text-slate-500 leading-relaxed">
-            Connected to <code class="bg-white px-1 py-0.5 rounded border border-slate-200 font-mono text-[11px]">/api/v1</code>.
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            Connected to <code class="bg-white dark:bg-slate-900 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 font-mono text-[11px] text-slate-700 dark:text-slate-300">/api/v1</code>.
           </p>
         </div>
       </div>
@@ -130,24 +130,24 @@ function handleNavClick() {
     >
       <!-- Backdrop -->
       <div
-        class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity"
+        class="fixed inset-0 bg-slate-900/60 dark:bg-black/70 backdrop-blur-xs transition-opacity"
         @click="emit('close')"
       ></div>
 
       <!-- Drawer Content -->
       <div
-        class="relative flex-1 flex flex-col max-w-xs w-full bg-white shadow-2xl z-10 p-5 justify-between animate-in slide-in-from-left duration-200"
+        class="relative flex-1 flex flex-col max-w-xs w-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-2xl z-10 p-5 justify-between animate-in slide-in-from-left duration-200"
       >
         <div>
           <!-- Drawer Header with Brand & Close Button -->
-          <div class="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+          <div class="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-4">
             <div class="flex items-center gap-2.5">
               <AppLogo size="sm" />
-              <span class="font-extrabold text-base tracking-tight text-slate-900">TaskFlow</span>
+              <span class="font-extrabold text-base tracking-tight text-slate-900 dark:text-white">TaskFlow</span>
             </div>
             <button
               type="button"
-              class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+              class="p-1.5 text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
               @click="emit('close')"
             >
               <LucideX class="w-5 h-5" />
@@ -156,7 +156,7 @@ function handleNavClick() {
 
           <!-- Mobile Nav Links -->
           <nav class="space-y-1.5">
-            <p class="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            <p class="px-3 text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-2">
               Workspace
             </p>
 
@@ -165,8 +165,8 @@ function handleNavClick() {
               class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
               :class="[
                 route.path.startsWith('/workspaces')
-                  ? 'bg-indigo-50 text-indigo-700'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white',
               ]"
               @click="handleNavClick"
             >
@@ -180,42 +180,43 @@ function handleNavClick() {
               class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
               :class="[
                 route.path.startsWith('/projects')
-                  ? 'bg-indigo-50 text-indigo-700'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white',
               ]"
               @click="handleNavClick"
             >
               <LucideFolderKanban class="w-5 h-5 shrink-0" />
               <span>Projects</span>
-              <span class="ml-auto text-[10px] bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded font-mono">
-                dev
-              </span>
+              <span class="ml-auto w-2 h-2 rounded-full bg-emerald-500"></span>
             </router-link>
 
-            <button
-              type="button"
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-50 transition-colors text-left focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
-              @click="openUnderDev('Tasks & Kanban Board')"
+            <router-link
+              to="/tasks"
+              class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
+              :class="[
+                route.path.startsWith('/tasks')
+                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white',
+              ]"
+              @click="handleNavClick"
             >
               <LucideCheckSquare class="w-5 h-5 shrink-0" />
               <span>Tasks & Board</span>
-              <span class="ml-auto text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
-                soon
-              </span>
-            </button>
+              <span class="ml-auto w-2 h-2 rounded-full bg-emerald-500"></span>
+            </router-link>
 
-            <p class="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider mt-5 mb-2">
+            <p class="px-3 text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider mt-5 mb-2">
               Management
             </p>
 
             <button
               type="button"
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-50 transition-colors text-left focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
+              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 transition-colors text-left focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
               @click="openUnderDev('Workspace Settings')"
             >
               <LucideSettings class="w-5 h-5 shrink-0" />
               <span>Settings</span>
-              <span class="ml-auto text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
+              <span class="ml-auto text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded">
                 soon
               </span>
             </button>
@@ -223,14 +224,14 @@ function handleNavClick() {
         </div>
 
         <!-- Mobile Drawer Footer -->
-        <div class="pt-4 border-t border-slate-100">
-          <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <div class="flex items-center gap-2 text-xs font-semibold text-slate-700">
-              <LucideHelpCircle class="w-4 h-4 text-indigo-500" />
+        <div class="pt-4 border-t border-slate-100 dark:border-slate-800">
+          <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-800">
+            <div class="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <LucideHelpCircle class="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
               <span>FastAPI Integration</span>
             </div>
-            <p class="mt-1 text-xs text-slate-500 leading-relaxed">
-              Connected to <code class="bg-white px-1 py-0.5 rounded border border-slate-200 font-mono text-[11px]">/api/v1</code>
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Connected to <code class="bg-white dark:bg-slate-900 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 font-mono text-[11px] text-slate-700 dark:text-slate-300">/api/v1</code>
             </p>
           </div>
         </div>

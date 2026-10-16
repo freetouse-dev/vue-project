@@ -55,10 +55,10 @@ function formatDate(dateStr: string) {
     <!-- Top Action Bar -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
       <div>
-        <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+        <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
           Workspaces
         </h1>
-        <p class="text-xs sm:text-sm text-slate-500 mt-0.5 sm:mt-1">
+        <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 sm:mt-1">
           Select or manage the collaboration spaces you belong to
         </p>
       </div>
@@ -75,7 +75,7 @@ function formatDate(dateStr: string) {
     <!-- Error State -->
     <div
       v-if="fetchError"
-      class="p-4 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700 flex items-center justify-between"
+      class="p-4 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 rounded-xl text-sm text-rose-700 dark:text-rose-300 flex items-center justify-between"
     >
       <span>{{ fetchError }}</span>
       <BaseButton size="sm" variant="outline" @click="workspaceStore.fetchWorkspaces()">
@@ -86,7 +86,7 @@ function formatDate(dateStr: string) {
     <!-- Loading State -->
     <div
       v-if="workspaceStore.isLoading && workspaceStore.workspaces.length === 0"
-      class="py-20 flex flex-col items-center justify-center text-slate-400 gap-3"
+      class="py-20 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 gap-3"
     >
       <LoadingSpinner size="lg" />
       <span class="text-sm">Loading workspaces from FastAPI...</span>
@@ -95,14 +95,14 @@ function formatDate(dateStr: string) {
     <!-- Empty State -->
     <div
       v-else-if="workspaceStore.workspaces.length === 0"
-      class="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-12 text-center max-w-lg mx-auto my-8 space-y-4"
+      class="bg-white dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 p-12 text-center max-w-lg mx-auto my-8 space-y-4"
     >
-      <div class="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 mx-auto flex items-center justify-center">
+      <div class="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 mx-auto flex items-center justify-center">
         <LucideBuilding2 class="w-8 h-8" />
       </div>
       <div>
-        <h3 class="text-base font-semibold text-slate-900">No workspaces yet</h3>
-        <p class="text-sm text-slate-500 mt-1">
+        <h3 class="text-base font-semibold text-slate-900 dark:text-white">No workspaces yet</h3>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
           Create your first workspace to start collaborating on projects.
         </p>
       </div>
@@ -117,20 +117,20 @@ function formatDate(dateStr: string) {
       <div
         v-for="ws in workspaceStore.workspaces"
         :key="ws.id"
-        class="bg-white rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all p-5 flex flex-col justify-between group"
+        class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-600 hover:shadow-md transition-all p-5 flex flex-col justify-between group"
       >
         <div>
           <!-- Card Header -->
           <div class="flex items-start justify-between gap-2">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">
+              <div class="w-10 h-10 rounded-lg bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-300 flex items-center justify-center font-bold text-sm">
                 {{ ws.name.slice(0, 2).toUpperCase() }}
               </div>
               <div>
-                <h3 class="font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1">
+                <h3 class="font-semibold text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-1">
                   {{ ws.name }}
                 </h3>
-                <span class="text-xs font-mono text-slate-400">
+                <span class="text-xs font-mono text-slate-400 dark:text-slate-500">
                   /{{ ws.slug }}
                 </span>
               </div>
@@ -139,7 +139,7 @@ function formatDate(dateStr: string) {
             <!-- More / Quick Options (Triggers Under Development for unbuilt APIs) -->
             <button
               type="button"
-              class="text-slate-400 hover:text-slate-600 p-1 rounded-md"
+              class="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 p-1 rounded-md cursor-pointer"
               title="Workspace Options"
               @click="triggerUnderDev('Workspace Settings & Deletion')"
             >
@@ -148,21 +148,21 @@ function formatDate(dateStr: string) {
           </div>
 
           <!-- Description -->
-          <p class="mt-3 text-sm text-slate-600 line-clamp-2 min-h-10">
+          <p class="mt-3 text-sm text-slate-600 dark:text-slate-300 line-clamp-2 min-h-10">
             {{ ws.description || 'No description provided for this workspace.' }}
           </p>
         </div>
 
         <!-- Card Footer -->
-        <div class="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+        <div class="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
           <div class="flex items-center gap-1.5">
-            <LucideCalendar class="w-3.5 h-3.5 text-slate-400" />
+            <LucideCalendar class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
             <span>{{ formatDate(ws.created_at) }}</span>
           </div>
 
           <router-link
             :to="{ name: 'workspace-detail', params: { slug: ws.slug } }"
-            class="inline-flex items-center gap-1 font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
+            class="inline-flex items-center gap-1 font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
           >
             <span>Open</span>
             <LucideArrowRight class="w-3.5 h-3.5" />
