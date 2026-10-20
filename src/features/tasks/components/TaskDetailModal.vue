@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { taskService } from '@/features/tasks/services/taskService'
 import { commentService } from '@/features/tasks/services/commentService'
+import { useNotification } from '@/composables/useNotification'
 import { formatApiError } from '@/services/apiClient'
 import type { Task, TaskPriority, TaskStatus } from '@/features/tasks/types/task.types'
 import type { TaskComment } from '@/features/tasks/types/comment.types'
@@ -11,10 +12,15 @@ import type { TaskActivity } from '@/features/tasks/types/activity.types'
 import type { ProjectMember } from '@/features/projects/types/project.types'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseSelect from '@/components/common/BaseSelect.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
+import CommentAttachmentList from '@/features/tasks/components/CommentAttachmentList.vue'
+import TaskStatusTransitionDialog from '@/features/tasks/components/TaskStatusTransitionDialog.vue'
 import {
   TASK_STATUS_SELECT_OPTIONS,
   TASK_PRIORITY_SELECT_OPTIONS,
   getTaskPriorityConfig,
+  getTaskStatusConfig,
 } from '@/utils/statusTheme'
 import {
   LucideX,
@@ -24,8 +30,11 @@ import {
   LucideActivity,
   LucideFileText,
   LucideTrash2,
+  LucideEdit,
   LucideSend,
   LucideUser,
+  LucideCheck,
+  LucidePaperclip,
 } from 'lucide-vue-next'
 
 const props = defineProps<{
@@ -39,10 +48,12 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void
   (e: 'updated', task: Task): void
+  (e: 'deleted', taskNumber: number): void
 }>()
 
 const authStore = useAuthStore()
 const workspaceStore = useWorkspaceStore()
+const notify = useNotification()
 
 // Tabs: details | comments | activity
 const activeTab = ref<'details' | 'comments' | 'activity'>('details')
@@ -67,11 +78,104 @@ const isEditing = ref(false)
 const errorMessage = ref('')
 const isSubmitting = ref(false)
 
+// Delete Task Dialog
+const showDeleteTaskDialog = ref(false)
+const isDeletingTask = ref(false)
+
+// Status Transition Dialog
+const showStatusTransitionDialog = ref(false)
+const pendingTargetStatus = ref<TaskStatus | null>(null)
+const isSubmittingTransition = ref(false)
+
 // Comments State
 const comments = ref<TaskComment[]>([])
 const isLoadingComments = ref(false)
 const newCommentContent = ref('')
 const isPostingComment = ref(false)
+
+// Attachments State
+interface StagedAttachment {
+  file: File
+  previewUrl?: string
+  isImage: boolean
+}
+const stagedAttachments = ref<StagedAttachment[]>([])
+const attachmentInputRef = ref<HTMLInputElement | null>(null)
+
+function triggerAttachmentInput() {
+  attachmentInputRef.value?.click()
+}
+
+function handleAttachmentSelect(e: Event) {
+  const target = e.target as HTMLInputElement
+  if (!target.files) return
+  addFilesToStaged(Array.from(target.files))
+  target.value = ''
+}
+
+function handleCommentDrop(e: DragEvent) {
+  e.preventDefault()
+  if (e.dataTransfer?.files) {
+    addFilesToStaged(Array.from(e.dataTransfer.files))
+  }
+}
+
+function addFilesToStaged(files: File[]) {
+  errorMessage.value = ''
+  const allowed = [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ]
+
+  for (const file of files) {
+    if (stagedAttachments.value.length >= 5) {
+      notify.warning('Maximum 5 attachments allowed per comment.')
+      break
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      notify.error(`File "${file.name}" exceeds 10MB limit.`)
+      continue
+    }
+    const isAllowed = allowed.includes(file.type) || file.name.endsWith('.docx') || file.name.endsWith('.pdf')
+    if (!isAllowed) {
+      notify.error(`File "${file.name}" is not a supported format (JPEG, PNG, WebP, GIF, PDF, DOCX).`)
+      continue
+    }
+
+    const isImage = file.type.startsWith('image/')
+    const previewUrl = isImage ? URL.createObjectURL(file) : undefined
+    stagedAttachments.value.push({ file, previewUrl, isImage })
+  }
+}
+
+function removeStagedAttachment(index: number) {
+  const item = stagedAttachments.value[index]
+  if (item.previewUrl) {
+    URL.revokeObjectURL(item.previewUrl)
+  }
+  stagedAttachments.value.splice(index, 1)
+}
+
+function clearStagedAttachments() {
+  stagedAttachments.value.forEach((item) => {
+    if (item.previewUrl) URL.revokeObjectURL(item.previewUrl)
+  })
+  stagedAttachments.value = []
+}
+
+// Edit Comment State
+const editingCommentId = ref<number | null>(null)
+const editingCommentContent = ref('')
+const isUpdatingComment = ref(false)
+
+// Delete Comment State
+const showDeleteCommentDialog = ref(false)
+const commentToDelete = ref<TaskComment | null>(null)
+const isDeletingComment = ref(false)
 
 // Activities State
 const activities = ref<TaskActivity[]>([])
@@ -90,6 +194,8 @@ function syncFromTask() {
   activeTab.value = 'details'
   comments.value = []
   activities.value = []
+  editingCommentId.value = null
+  clearStagedAttachments()
 }
 
 watch(
@@ -128,28 +234,62 @@ function formatDate(dateStr: string) {
   })
 }
 
-async function handleStatusChange(newStatus: TaskStatus) {
+// Status transition triggered by header dropdown
+function promptStatusChange(newStatus: TaskStatus) {
   if (!props.task || props.task.status === newStatus) return
+  pendingTargetStatus.value = newStatus
+  showStatusTransitionDialog.value = true
+}
 
-  isSubmitting.value = true
+async function confirmStatusTransition() {
+  if (!props.task || !pendingTargetStatus.value) return
+  isSubmittingTransition.value = true
   errorMessage.value = ''
   try {
     const updated = await taskService.updateTask(
       props.workspaceSlug,
       props.projectKey,
       props.task.task_number,
-      { status: newStatus }
+      { status: pendingTargetStatus.value }
     )
     status.value = updated.status
     emit('updated', updated)
-    // Reload activity history if open
+    notify.success(`Status updated to ${getTaskStatusConfig(updated.status).label}`)
+    showStatusTransitionDialog.value = false
+    pendingTargetStatus.value = null
     if (activeTab.value === 'activity') {
       loadActivities()
     }
   } catch (err: unknown) {
     errorMessage.value = formatApiError(err)
+    notify.error(errorMessage.value)
   } finally {
-    isSubmitting.value = false
+    isSubmittingTransition.value = false
+  }
+}
+
+function cancelStatusTransition() {
+  pendingTargetStatus.value = null
+  showStatusTransitionDialog.value = false
+}
+
+// Delete Task Handler
+async function confirmDeleteTask() {
+  if (!props.task) return
+  isDeletingTask.value = true
+  try {
+    await taskService.deleteTask(
+      props.workspaceSlug,
+      props.projectKey,
+      props.task.task_number
+    )
+    showDeleteTaskDialog.value = false
+    emit('deleted', props.task.task_number)
+    close()
+  } catch (err: unknown) {
+    notify.error(formatApiError(err))
+  } finally {
+    isDeletingTask.value = false
   }
 }
 
@@ -178,6 +318,7 @@ async function handleSaveDetails() {
     )
     isEditing.value = false
     emit('updated', updated)
+    notify.success('Task details updated')
     if (activeTab.value === 'activity') {
       loadActivities()
     }
@@ -206,7 +347,7 @@ async function loadComments() {
 }
 
 async function handleAddComment() {
-  if (!props.task || !newCommentContent.value.trim()) return
+  if (!props.task || (!newCommentContent.value.trim() && stagedAttachments.value.length === 0)) return
 
   isPostingComment.value = true
   errorMessage.value = ''
@@ -215,10 +356,32 @@ async function handleAddComment() {
       props.workspaceSlug,
       props.projectKey,
       props.task.task_number,
-      { content: newCommentContent.value.trim() }
+      { content: newCommentContent.value.trim() || '(Attachment)' }
     )
+
+    if (stagedAttachments.value.length > 0) {
+      const filesToUpload = stagedAttachments.value.map((item) => item.file)
+      try {
+        const uploadedAttachments = await commentService.uploadAttachments(
+          props.workspaceSlug,
+          props.projectKey,
+          props.task.task_number,
+          created.id,
+          filesToUpload
+        )
+        created.attachments = uploadedAttachments
+      } catch (attErr: unknown) {
+        notify.warning('Comment posted, but attachments failed: ' + formatApiError(attErr))
+      }
+    }
+
     comments.value.push(created)
     newCommentContent.value = ''
+    clearStagedAttachments()
+    notify.success('Comment added')
+    if (activeTab.value === 'activity') {
+      loadActivities()
+    }
   } catch (err: unknown) {
     errorMessage.value = formatApiError(err)
   } finally {
@@ -226,7 +389,27 @@ async function handleAddComment() {
   }
 }
 
-function canDeleteComment(comment: TaskComment): boolean {
+async function handleDeleteAttachment(commentId: number, attachmentId: number) {
+  if (!props.task) return
+  try {
+    await commentService.deleteAttachment(
+      props.workspaceSlug,
+      props.projectKey,
+      props.task.task_number,
+      commentId,
+      attachmentId
+    )
+    const comm = comments.value.find((c) => c.id === commentId)
+    if (comm && comm.attachments) {
+      comm.attachments = comm.attachments.filter((a) => a.id !== attachmentId)
+    }
+    notify.success('Attachment removed')
+  } catch (err: unknown) {
+    notify.error(formatApiError(err))
+  }
+}
+
+function canManageComment(comment: TaskComment): boolean {
   if (!authStore.user) return false
   if (comment.author_id === authStore.user.id) return true
   if (authStore.user.is_superuser) return true
@@ -234,18 +417,64 @@ function canDeleteComment(comment: TaskComment): boolean {
   return false
 }
 
-async function handleDeleteComment(commentId: number) {
-  if (!props.task) return
+function startEditComment(comment: TaskComment) {
+  editingCommentId.value = comment.id
+  editingCommentContent.value = comment.content
+}
+
+function cancelEditComment() {
+  editingCommentId.value = null
+  editingCommentContent.value = ''
+}
+
+async function handleSaveEditedComment(commentId: number) {
+  if (!props.task || !editingCommentContent.value.trim()) return
+  isUpdatingComment.value = true
+  try {
+    const updated = await commentService.updateComment(
+      props.workspaceSlug,
+      props.projectKey,
+      props.task.task_number,
+      commentId,
+      editingCommentContent.value.trim()
+    )
+    const idx = comments.value.findIndex((c) => c.id === commentId)
+    if (idx !== -1) {
+      comments.value[idx] = updated
+    }
+    editingCommentId.value = null
+    editingCommentContent.value = ''
+    notify.success('Comment updated')
+  } catch (err: unknown) {
+    notify.error(formatApiError(err))
+  } finally {
+    isUpdatingComment.value = false
+  }
+}
+
+function promptDeleteComment(comment: TaskComment) {
+  commentToDelete.value = comment
+  showDeleteCommentDialog.value = true
+}
+
+async function confirmDeleteComment() {
+  if (!props.task || !commentToDelete.value) return
+  isDeletingComment.value = true
   try {
     await commentService.deleteComment(
       props.workspaceSlug,
       props.projectKey,
       props.task.task_number,
-      commentId
+      commentToDelete.value.id
     )
-    comments.value = comments.value.filter((c) => c.id !== commentId)
+    comments.value = comments.value.filter((c) => c.id !== commentToDelete.value?.id)
+    notify.success('Comment deleted')
+    showDeleteCommentDialog.value = false
+    commentToDelete.value = null
   } catch (err: unknown) {
-    errorMessage.value = formatApiError(err)
+    notify.error(formatApiError(err))
+  } finally {
+    isDeletingComment.value = false
   }
 }
 
@@ -299,7 +528,7 @@ function formatActionText(act: TaskActivity): string {
     <div
       class="bg-white dark:bg-slate-900 rounded-2xl max-w-xl w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-800 transform transition-all animate-in fade-in zoom-in-95 space-y-4"
     >
-      <!-- Top header bar: Ticket Key & Actions -->
+      <!-- Top header bar: Ticket Key, Quick Status, Delete, Close -->
       <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 gap-3">
         <div class="flex items-center gap-2.5 flex-1 min-w-0">
           <span class="text-sm font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg border border-indigo-100 dark:border-indigo-900 shrink-0">
@@ -313,12 +542,23 @@ function formatActionText(act: TaskActivity): string {
               :options="TASK_STATUS_SELECT_OPTIONS"
               size="sm"
               :disabled="isSubmitting"
-              @update:model-value="(val) => handleStatusChange(val as TaskStatus)"
+              @update:model-value="(val) => promptStatusChange(val as TaskStatus)"
             />
           </div>
         </div>
 
-        <div class="flex items-center gap-2 shrink-0">
+        <div class="flex items-center gap-1.5 shrink-0">
+          <!-- Delete Task Button -->
+          <button
+            type="button"
+            class="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+            title="Delete task"
+            @click="showDeleteTaskDialog = true"
+          >
+            <LucideTrash2 class="w-4 h-4" />
+          </button>
+
+          <!-- Close Modal Button -->
           <button
             type="button"
             class="text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-200 p-1 rounded-md transition-colors cursor-pointer"
@@ -424,9 +664,7 @@ function formatActionText(act: TaskActivity): string {
               <span class="text-xs text-slate-400 dark:text-slate-500 font-medium">Assignee</span>
               <div class="flex items-center gap-2 mt-1">
                 <template v-if="task.assignee">
-                  <div class="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-bold text-[10px]">
-                    {{ task.assignee.full_name.slice(0, 2).toUpperCase() }}
-                  </div>
+                  <UserAvatar :user="task.assignee" size="xs" />
                   <span class="text-sm font-medium text-slate-800 dark:text-slate-200">{{ task.assignee.full_name }}</span>
                 </template>
                 <template v-else>
@@ -446,7 +684,10 @@ function formatActionText(act: TaskActivity): string {
             <!-- Author -->
             <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
               <span class="text-xs text-slate-400 dark:text-slate-500 font-medium">Created By</span>
-              <p class="text-sm font-medium text-slate-800 dark:text-slate-200 mt-0.5">{{ task.creator.full_name }}</p>
+              <div class="flex items-center gap-2 mt-1">
+                <UserAvatar :user="task.creator" size="xs" />
+                <span class="text-sm font-medium text-slate-800 dark:text-slate-200">{{ task.creator.full_name }}</span>
+              </div>
             </div>
           </div>
 
@@ -466,16 +707,29 @@ function formatActionText(act: TaskActivity): string {
               size="sm"
               @click="isEditing = true"
             >
+              <LucideEdit class="w-3.5 h-3.5 mr-1" />
               Edit Details
             </BaseButton>
 
-            <BaseButton
-              size="sm"
-              variant="outline"
-              @click="close"
-            >
-              Close
-            </BaseButton>
+            <div class="flex items-center gap-2">
+              <BaseButton
+                size="sm"
+                variant="outline"
+                class="hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:border-rose-300 dark:hover:border-rose-800 text-rose-600 dark:text-rose-400"
+                @click="showDeleteTaskDialog = true"
+              >
+                <LucideTrash2 class="w-3.5 h-3.5 mr-1" />
+                Delete Task
+              </BaseButton>
+
+              <BaseButton
+                size="sm"
+                variant="outline"
+                @click="close"
+              >
+                Close
+              </BaseButton>
+            </div>
           </div>
         </div>
 
@@ -572,24 +826,87 @@ function formatActionText(act: TaskActivity): string {
       <!-- TAB 2: COMMENTS -->
       <div v-else-if="activeTab === 'comments'" class="space-y-4">
         <!-- New Comment Form -->
-        <form class="space-y-2.5" @submit.prevent="handleAddComment">
-          <label for="comment-input" class="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Add Comment
-          </label>
+        <form
+          class="space-y-2.5 rounded-xl border border-slate-200 dark:border-slate-800 p-3 bg-slate-50/50 dark:bg-slate-900/50"
+          @submit.prevent="handleAddComment"
+          @dragover.prevent
+          @drop="handleCommentDrop"
+        >
+          <div class="flex items-center justify-between">
+            <label for="comment-input" class="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Add Comment
+            </label>
+            <span class="text-[11px] text-slate-400 dark:text-slate-500">
+              Drop files here or click paperclip
+            </span>
+          </div>
+
           <textarea
             id="comment-input"
             v-model="newCommentContent"
             rows="3"
             placeholder="Write a comment or update on this task..."
-            required
-            class="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
+            :required="stagedAttachments.length === 0"
+            class="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500 resize-y"
           ></textarea>
-          <div class="flex justify-end">
+
+          <!-- Hidden Attachment File Input -->
+          <input
+            ref="attachmentInputRef"
+            type="file"
+            multiple
+            class="hidden"
+            accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.docx"
+            @change="handleAttachmentSelect"
+          />
+
+          <!-- Staged Attachments Preview -->
+          <div v-if="stagedAttachments.length > 0" class="flex flex-wrap gap-2 pt-1">
+            <div
+              v-for="(staged, idx) in stagedAttachments"
+              :key="idx"
+              class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 shadow-xs"
+            >
+              <img
+                v-if="staged.isImage && staged.previewUrl"
+                :src="staged.previewUrl"
+                alt="Preview"
+                class="w-6 h-6 rounded object-cover border border-slate-200 dark:border-slate-700"
+              />
+              <LucideFileText v-else class="w-4 h-4 text-indigo-500" />
+              <span class="max-w-[140px] truncate font-medium" :title="staged.file.name">{{ staged.file.name }}</span>
+              <span class="text-[10px] text-slate-400">({{ (staged.file.size / 1024).toFixed(0) }} KB)</span>
+              <button
+                type="button"
+                class="p-0.5 rounded text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
+                title="Remove attachment"
+                @click="removeStagedAttachment(idx)"
+              >
+                <LucideX class="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-1">
+            <BaseButton
+              type="button"
+              variant="outline"
+              size="sm"
+              title="Attach files (JPEG, PNG, WebP, GIF, PDF, DOCX up to 10MB)"
+              @click="triggerAttachmentInput"
+            >
+              <LucidePaperclip class="w-3.5 h-3.5 mr-1" />
+              Attach
+              <span v-if="stagedAttachments.length > 0" class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-semibold">
+                {{ stagedAttachments.length }}
+              </span>
+            </BaseButton>
+
             <BaseButton
               type="submit"
               size="sm"
               :loading="isPostingComment"
-              :disabled="!newCommentContent.trim()"
+              :disabled="!newCommentContent.trim() && stagedAttachments.length === 0"
             >
               <LucideSend class="w-3.5 h-3.5 mr-1" />
               Post Comment
@@ -608,7 +925,7 @@ function formatActionText(act: TaskActivity): string {
           >
             No comments yet. Be the first to start the discussion!
           </div>
-          <div v-else class="space-y-3 max-h-72 overflow-y-auto pr-1">
+          <div v-else class="space-y-3 max-h-80 overflow-y-auto pr-1">
             <div
               v-for="comm in comments"
               :key="comm.id"
@@ -616,9 +933,7 @@ function formatActionText(act: TaskActivity): string {
             >
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                  <div class="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-bold text-[10px]">
-                    {{ comm.author.full_name.slice(0, 2).toUpperCase() }}
-                  </div>
+                  <UserAvatar :user="comm.author" size="xs" />
                   <span class="text-xs font-semibold text-slate-800 dark:text-slate-200">
                     {{ comm.author.full_name }}
                   </span>
@@ -627,20 +942,71 @@ function formatActionText(act: TaskActivity): string {
                   </span>
                 </div>
 
-                <button
-                  v-if="canDeleteComment(comm)"
-                  type="button"
-                  title="Delete comment"
-                  class="text-slate-400 hover:text-rose-500 p-1 rounded-md transition-colors cursor-pointer"
-                  @click="handleDeleteComment(comm.id)"
-                >
-                  <LucideTrash2 class="w-3.5 h-3.5" />
-                </button>
+                <!-- Comment Actions (Edit / Delete) -->
+                <div v-if="canManageComment(comm)" class="flex items-center gap-1">
+                  <button
+                    v-if="comm.author_id === authStore.user?.id || authStore.user?.is_superuser"
+                    type="button"
+                    title="Edit comment"
+                    class="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 p-1 rounded-md transition-colors cursor-pointer"
+                    @click="startEditComment(comm)"
+                  >
+                    <LucideEdit class="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    title="Delete comment"
+                    class="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 p-1 rounded-md transition-colors cursor-pointer"
+                    @click="promptDeleteComment(comm)"
+                  >
+                    <LucideTrash2 class="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
 
-              <p class="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed pl-8">
-                {{ comm.content }}
-              </p>
+              <!-- Inline Edit Form -->
+              <div v-if="editingCommentId === comm.id" class="space-y-2 mt-2">
+                <textarea
+                  v-model="editingCommentContent"
+                  rows="2"
+                  class="w-full text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
+                ></textarea>
+                <div class="flex justify-end gap-2">
+                  <BaseButton
+                    size="sm"
+                    variant="outline"
+                    :disabled="isUpdatingComment"
+                    @click="cancelEditComment"
+                  >
+                    Cancel
+                  </BaseButton>
+                  <BaseButton
+                    size="sm"
+                    :loading="isUpdatingComment"
+                    :disabled="!editingCommentContent.trim()"
+                    @click="handleSaveEditedComment(comm.id)"
+                  >
+                    <LucideCheck class="w-3 h-3 mr-1" />
+                    Save
+                  </BaseButton>
+                </div>
+              </div>
+
+              <!-- Comment Content Display -->
+              <div v-else class="space-y-2 pl-8">
+                <p class="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                  {{ comm.content }}
+                </p>
+
+                <!-- Comment Attachments -->
+                <CommentAttachmentList
+                  v-if="comm.attachments && comm.attachments.length > 0"
+                  :attachments="comm.attachments"
+                  :can-delete="canManageComment(comm)"
+                  @delete="(attId) => handleDeleteAttachment(comm.id, attId)"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -680,5 +1046,37 @@ function formatActionText(act: TaskActivity): string {
         </div>
       </div>
     </div>
+
+    <!-- Confirm Delete Task Dialog -->
+    <ConfirmDialog
+      v-model="showDeleteTaskDialog"
+      title="Delete Task"
+      :message="`Are you sure you want to delete task &quot;${task?.ticket_key} - ${task?.title}&quot;? This action will archive the task.`"
+      confirm-text="Delete Task"
+      variant="danger"
+      :loading="isDeletingTask"
+      @confirm="confirmDeleteTask"
+    />
+
+    <!-- Confirm Delete Comment Dialog -->
+    <ConfirmDialog
+      v-model="showDeleteCommentDialog"
+      title="Delete Comment"
+      message="Are you sure you want to delete this comment? This action cannot be undone."
+      confirm-text="Delete Comment"
+      variant="danger"
+      :loading="isDeletingComment"
+      @confirm="confirmDeleteComment"
+    />
+
+    <!-- Task Status Transition Dialog -->
+    <TaskStatusTransitionDialog
+      v-model="showStatusTransitionDialog"
+      :task="task"
+      :new-status="pendingTargetStatus"
+      :loading="isSubmittingTransition"
+      @confirm="confirmStatusTransition"
+      @cancel="cancelStatusTransition"
+    />
   </div>
 </template>

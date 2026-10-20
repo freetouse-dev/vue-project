@@ -11,6 +11,8 @@ export interface Project {
   description: string | null
   status: ProjectStatus
   created_by_id: number
+  deleted_at?: string | null
+  deleted_by_id?: number | null
   created_at: string
   updated_at: string
 }

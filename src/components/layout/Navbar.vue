@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useWorkspaceStore } from '@/stores/workspace'
 import AppLogo from '@/components/common/AppLogo.vue'
 import WorkspaceDropdown from '@/components/layout/WorkspaceDropdown.vue'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
+import UserProfileModal from '@/components/common/UserProfileModal.vue'
 import {
   LucideLogOut,
-  LucideUser,
   LucideMenu,
   LucideX,
+  Shield,
 } from 'lucide-vue-next'
 
 defineProps<{
@@ -27,6 +29,7 @@ const authStore = useAuthStore()
 const workspaceStore = useWorkspaceStore()
 
 const user = computed(() => authStore.user)
+const showProfileModal = ref(false)
 
 function handleLogout() {
   authStore.logout()
@@ -67,8 +70,19 @@ function handleLogout() {
       />
     </div>
 
-    <!-- Right: Theme Toggle + Current User & Logout -->
+    <!-- Right: Admin + Theme Toggle + Current User & Logout -->
     <div class="flex items-center gap-1.5 sm:gap-3 shrink-0">
+      <!-- Admin Link if Superuser -->
+      <router-link
+        v-if="authStore.isSuperuser"
+        to="/admin"
+        class="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 border border-purple-500/20 transition-colors"
+        title="Admin Dashboard"
+      >
+        <Shield class="w-3.5 h-3.5" />
+        <span>Admin</span>
+      </router-link>
+
       <!-- Theme Switcher -->
       <ThemeToggle />
 
@@ -81,12 +95,14 @@ function handleLogout() {
         </span>
       </div>
 
-      <div
-        class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-medium text-xs"
-        :title="user ? `${user.full_name} (${user.email})` : 'User profile'"
+      <button
+        type="button"
+        class="rounded-full focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500 cursor-pointer transition-transform active:scale-95"
+        :title="user ? `${user.full_name} - Edit profile` : 'User profile'"
+        @click="showProfileModal = true"
       >
-        <LucideUser class="w-4 h-4" />
-      </div>
+        <UserAvatar :user="user" size="sm" />
+      </button>
 
       <button
         type="button"
@@ -98,4 +114,7 @@ function handleLogout() {
       </button>
     </div>
   </header>
+
+  <!-- User Profile & Avatar Modal -->
+  <UserProfileModal v-model="showProfileModal" />
 </template>

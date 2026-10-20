@@ -199,6 +199,10 @@ async function handleResend() {
           <span v-else-if="isResending">Sending code...</span>
           <span v-else>Resend verification code</span>
         </button>
+
+        <p class="text-[11px] text-center text-slate-400 dark:text-slate-500 leading-relaxed px-2">
+          Verification emails are dispatched asynchronously via background tasks. Please allow a few moments to arrive and check your spam or junk folder if needed.
+        </p>
       </div>
 
       <!-- Back to Login -->

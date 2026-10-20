@@ -102,5 +102,29 @@ export const authService = {
     const response = await apiClient.get<User>('/users/me')
     return response.data
   },
+
+  /**
+   * Uploads or replaces current user profile avatar image
+   */
+  async uploadAvatar(file: File): Promise<User> {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await apiClient.put<User>('/users/me/avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  },
+
+  /**
+   * Removes current user profile avatar image
+   */
+  async removeAvatar(): Promise<User> {
+    const response = await apiClient.delete<User>('/users/me/avatar')
+    return response.data
+  },
 }
+
+export default authService
 

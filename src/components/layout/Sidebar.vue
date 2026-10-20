@@ -8,7 +8,9 @@ import {
   LucideSettings,
   LucideHelpCircle,
   LucideX,
+  Shield,
 } from 'lucide-vue-next'
+import { useAuthStore } from '@/stores/auth'
 import AppLogo from '@/components/common/AppLogo.vue'
 import UnderDevelopmentModal from '@/components/common/UnderDevelopmentModal.vue'
 
@@ -21,6 +23,7 @@ const emit = defineEmits<{
 }>()
 
 const route = useRoute()
+const authStore = useAuthStore()
 
 const showUnderDevModal = ref(false)
 const underDevFeature = ref('')
@@ -106,6 +109,29 @@ function handleNavClick() {
               soon
             </span>
           </button>
+
+          <!-- Admin Section -->
+          <template v-if="authStore.isSuperuser">
+            <p class="px-3 text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider mt-5 mb-2 flex items-center gap-1.5">
+              <Shield class="w-3.5 h-3.5" />
+              Administration
+            </p>
+            <router-link
+              to="/admin"
+              class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-purple-500"
+              :class="[
+                route.path.startsWith('/admin')
+                  ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-semibold'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white',
+              ]"
+            >
+              <Shield class="w-5 h-5 shrink-0 text-purple-600 dark:text-purple-400" />
+              <span>Admin Dashboard</span>
+              <span class="ml-auto px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300">
+                ADMIN
+              </span>
+            </router-link>
+          </template>
         </nav>
 
         <!-- Bottom Help card -->
@@ -220,6 +246,30 @@ function handleNavClick() {
                 soon
               </span>
             </button>
+
+            <!-- Mobile Admin Section -->
+            <template v-if="authStore.isSuperuser">
+              <p class="px-3 text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider mt-5 mb-2 flex items-center gap-1.5">
+                <Shield class="w-3.5 h-3.5" />
+                Administration
+              </p>
+              <router-link
+                to="/admin"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-purple-500"
+                :class="[
+                  route.path.startsWith('/admin')
+                    ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-semibold'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white',
+                ]"
+                @click="handleNavClick"
+              >
+                <Shield class="w-5 h-5 shrink-0 text-purple-600 dark:text-purple-400" />
+                <span>Admin Dashboard</span>
+                <span class="ml-auto px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300">
+                  ADMIN
+                </span>
+              </router-link>
+            </template>
           </nav>
         </div>
 

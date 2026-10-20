@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { Task, TaskStatus } from '@/features/tasks/types/task.types'
 import { getTaskPriorityConfig } from '@/utils/statusTheme'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 import {
   LucideCalendar,
-  LucideUser,
   LucideArrowRight,
 } from 'lucide-vue-next'
 
@@ -40,11 +40,27 @@ function getNextStatus(current: TaskStatus): TaskStatus | null {
 }
 
 const nextStatus = getNextStatus(props.task.status)
+
+function onDragStart(event: DragEvent) {
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData(
+      'text/plain',
+      JSON.stringify({
+        id: props.task.id,
+        task_number: props.task.task_number,
+        status: props.task.status,
+      })
+    )
+  }
+}
 </script>
 
 <template>
   <div
-    class="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3.5 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md transition-all cursor-pointer space-y-2.5 relative"
+    draggable="true"
+    class="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3.5 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md transition-all cursor-grab active:cursor-grabbing space-y-2.5 relative select-none"
+    @dragstart="onDragStart"
     @click="emit('click', task)"
   >
     <!-- Top row: Ticket Key & Priority -->
@@ -80,23 +96,13 @@ const nextStatus = getNextStatus(props.task.status)
       <!-- Assignee -->
       <div class="flex items-center gap-1.5 min-w-0">
         <template v-if="task.assignee">
-          <div
-            class="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-bold text-[10px] shrink-0"
-            :title="`Assigned to ${task.assignee.full_name} (${task.assignee.email})`"
-          >
-            {{ task.assignee.full_name.slice(0, 2).toUpperCase() }}
-          </div>
+          <UserAvatar :user="task.assignee" size="xs" />
           <span class="truncate text-[11px] font-medium text-slate-700 dark:text-slate-300 max-w-[100px]">
             {{ task.assignee.full_name }}
           </span>
         </template>
         <template v-else>
-          <div
-            class="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 flex items-center justify-center shrink-0"
-            title="Unassigned"
-          >
-            <LucideUser class="w-3.5 h-3.5" />
-          </div>
+          <UserAvatar size="xs" />
           <span class="text-[11px] text-slate-400 dark:text-slate-500 italic">Unassigned</span>
         </template>
       </div>

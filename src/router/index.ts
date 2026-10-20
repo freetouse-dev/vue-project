@@ -66,6 +66,12 @@ const router = createRouter({
           name: 'tasks',
           component: () => import('@/features/tasks/views/TasksOverviewView.vue'),
         },
+        {
+          path: 'admin',
+          name: 'admin-dashboard',
+          component: () => import('@/features/admin/views/AdminDashboardView.vue'),
+          meta: { requiresAdmin: true },
+        },
       ],
     },
 
@@ -94,6 +100,11 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   if (to.meta.guestOnly && isAuth) {
+    next({ name: 'workspaces' })
+    return
+  }
+
+  if (to.meta.requiresAdmin && !authStore.user?.is_superuser) {
     next({ name: 'workspaces' })
     return
   }

@@ -69,4 +69,43 @@ export const projectService = {
     )
     return response.data
   },
+
+  /**
+   * Updates a project (OWNER, ADMIN, or PROJECT_LEAD)
+   */
+  async updateProject(
+    workspaceSlug: string,
+    key: string,
+    payload: { name?: string; description?: string | null; status?: string }
+  ): Promise<Project> {
+    const response = await apiClient.patch<Project>(
+      `/workspaces/${encodeURIComponent(workspaceSlug)}/projects/${encodeURIComponent(key)}`,
+      payload
+    )
+    return response.data
+  },
+
+  /**
+   * Soft-deletes a project (OWNER or ADMIN)
+   */
+  async deleteProject(workspaceSlug: string, key: string): Promise<void> {
+    await apiClient.delete(
+      `/workspaces/${encodeURIComponent(workspaceSlug)}/projects/${encodeURIComponent(key)}`
+    )
+  },
+
+  /**
+   * Removes a member from the project
+   */
+  async removeProjectMember(
+    workspaceSlug: string,
+    key: string,
+    userId: number
+  ): Promise<void> {
+    await apiClient.delete(
+      `/workspaces/${encodeURIComponent(workspaceSlug)}/projects/${encodeURIComponent(key)}/members/${userId}`
+    )
+  },
 }
+
+export default projectService

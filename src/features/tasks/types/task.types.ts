@@ -22,6 +22,8 @@ export interface Task {
   creator_id: number
   assignee_id: number | null
   due_date: string | null
+  deleted_at?: string | null
+  deleted_by_id?: number | null
   created_at: string
   updated_at: string
   creator: User

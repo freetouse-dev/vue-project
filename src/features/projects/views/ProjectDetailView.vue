@@ -1,22 +1,26 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { projectService } from '@/features/projects/services/projectService'
 import { taskService } from '@/features/tasks/services/taskService'
 import { reportService } from '@/features/projects/services/reportService'
+import { useNotification } from '@/composables/useNotification'
 import { formatApiError } from '@/services/apiClient'
 import type { Project, ProjectMember } from '@/features/projects/types/project.types'
 import type { Task, TaskPriority, TaskStatus } from '@/features/tasks/types/task.types'
 import type { ProjectDashboardResponse } from '@/features/projects/types/report.types'
 import AddProjectMemberModal from '@/features/projects/components/AddProjectMemberModal.vue'
+import EditProjectModal from '@/features/projects/components/EditProjectModal.vue'
 import CreateTaskModal from '@/features/tasks/components/CreateTaskModal.vue'
 import TaskDetailModal from '@/features/tasks/components/TaskDetailModal.vue'
 import TaskCard from '@/features/tasks/components/TaskCard.vue'
-import UnderDevelopmentModal from '@/components/common/UnderDevelopmentModal.vue'
+import TaskStatusTransitionDialog from '@/features/tasks/components/TaskStatusTransitionDialog.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseSelect from '@/components/common/BaseSelect.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 import {
   KANBAN_PRIMARY_COLUMNS,
   TASK_STATUS_SELECT_OPTIONS,
@@ -29,7 +33,6 @@ import {
   LucideUsers,
   LucideUserPlus,
   LucideCalendar,
-  LucideChevronLeft,
   LucideShield,
   LucideEdit,
   LucideTrash2,
@@ -40,11 +43,14 @@ import {
   LucideCheckSquare,
   LucideSearch,
   LucideArrowUpDown,
-  LucideAlertTriangle,
-  LucideTrendingUp,
+  LucideUserMinus,
+  LucideX,
+  LucideFilter,
 } from 'lucide-vue-next'
 
 const route = useRoute()
+const router = useRouter()
+const notify = useNotification()
 
 const slug = computed(() => route.params.slug as string)
 const key = computed(() => route.params.key as string)
@@ -57,12 +63,29 @@ const isLoading = ref(true)
 const isLoadingTasks = ref(false)
 const errorMessage = ref('')
 
+// Modal visibility states
 const showAddMemberModal = ref(false)
+const showEditProjectModal = ref(false)
+const showDeleteProjectDialog = ref(false)
+const isDeletingProject = ref(false)
 const showCreateTaskModal = ref(false)
 const showTaskDetailModal = ref(false)
 const selectedTask = ref<Task | null>(null)
-const showUnderDevModal = ref(false)
-const underDevFeature = ref('')
+
+// Member removal state
+const showRemoveMemberDialog = ref(false)
+const memberToRemove = ref<ProjectMember | null>(null)
+const isRemovingMember = ref(false)
+
+// Status transition state
+const showStatusTransitionDialog = ref(false)
+const pendingStatusTransition = ref<{
+  task: Task
+  targetStatus: TaskStatus
+  sourceStatus: TaskStatus
+} | null>(null)
+const isSubmittingTransition = ref(false)
+const activeDragColumn = ref<TaskStatus | null>(null)
 
 const activeTab = ref<'overview' | 'members' | 'tasks'>('overview')
 const viewMode = ref<'kanban' | 'list'>('kanban')
@@ -99,6 +122,31 @@ const sortByOptions = [
   { value: 'created_at', label: 'Created' },
 ]
 
+// Active filter tracking
+const hasActiveFilters = computed(() => {
+  return (
+    searchQuery.value.trim().length > 0 ||
+    filterStatus.value !== '' ||
+    filterPriority.value !== ''
+  )
+})
+
+const activeFilterCount = computed(() => {
+  let count = 0
+  if (searchQuery.value.trim().length > 0) count++
+  if (filterStatus.value !== '') count++
+  if (filterPriority.value !== '') count++
+  return count
+})
+
+function clearFilters() {
+  searchQuery.value = ''
+  filterStatus.value = ''
+  filterPriority.value = ''
+  currentPage.value = 1
+  loadTasks()
+}
+
 const completedTasksCount = computed(() => {
   if (dashboard.value) return dashboard.value.completed_tasks
   return tasks.value.filter((t) => t.status === 'DONE').length
@@ -115,7 +163,7 @@ async function loadDashboard() {
   try {
     dashboard.value = await reportService.getProjectDashboard(slug.value, key.value)
   } catch {
-    // Ignore non-fatal dashboard loading errors
+    // Non-fatal
   }
 }
 
@@ -173,7 +221,7 @@ function handlePageChange(newPage: number) {
   loadTasks()
 }
 
-// Watch filters & search query
+// Watch search query debounce
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 watch(
   () => searchQuery.value,
@@ -191,9 +239,59 @@ watch([filterStatus, filterPriority, sortBy, sortOrder], () => {
   loadTasks()
 })
 
+// Project CRUD Handlers
+function handleProjectUpdated(updated: Project) {
+  project.value = updated
+  notify.success(`Project "${updated.name}" updated successfully`)
+}
+
+async function confirmDeleteProject() {
+  if (!project.value || !slug.value) return
+  isDeletingProject.value = true
+  try {
+    await projectService.deleteProject(slug.value, project.value.key)
+    notify.success(`Project "${project.value.name}" deleted successfully`)
+    showDeleteProjectDialog.value = false
+    router.push(`/workspaces/${slug.value}`)
+  } catch (err: unknown) {
+    notify.error(formatApiError(err))
+  } finally {
+    isDeletingProject.value = false
+  }
+}
+
+// Member Removal Handlers
+function promptRemoveMember(member: ProjectMember) {
+  memberToRemove.value = member
+  showRemoveMemberDialog.value = true
+}
+
+async function confirmRemoveMember() {
+  if (!memberToRemove.value || !slug.value || !key.value) return
+  isRemovingMember.value = true
+  try {
+    await projectService.removeProjectMember(
+      slug.value,
+      key.value,
+      memberToRemove.value.user.id
+    )
+    notify.success(`Removed ${memberToRemove.value.user.full_name} from project`)
+    showRemoveMemberDialog.value = false
+    memberToRemove.value = null
+    members.value = await projectService.getProjectMembers(slug.value, key.value)
+  } catch (err: unknown) {
+    notify.error(formatApiError(err))
+  } finally {
+    isRemovingMember.value = false
+  }
+}
+
+// Task Callbacks
 function handleTaskCreated(newTask: Task) {
   tasks.value.unshift(newTask)
+  totalTasks.value += 1
   loadDashboard()
+  notify.success(`Task ${newTask.ticket_key} created successfully`)
 }
 
 function handleTaskUpdated(updatedTask: Task) {
@@ -207,28 +305,97 @@ function handleTaskUpdated(updatedTask: Task) {
   loadDashboard()
 }
 
-async function handleQuickStatus(task: Task, newStatus: TaskStatus) {
+function handleTaskDeleted(taskNumber: number) {
+  tasks.value = tasks.value.filter((t) => t.task_number !== taskNumber)
+  totalTasks.value = Math.max(0, totalTasks.value - 1)
+  if (selectedTask.value?.task_number === taskNumber) {
+    selectedTask.value = null
+    showTaskDetailModal.value = false
+  }
+  loadDashboard()
+  notify.success('Task deleted successfully')
+}
+
+// Status Transition Confirmation & Drag/Drop
+function requestStatusTransition(task: Task, targetStatus: TaskStatus) {
+  if (task.status === targetStatus) return
+  pendingStatusTransition.value = {
+    task,
+    targetStatus,
+    sourceStatus: task.status,
+  }
+  showStatusTransitionDialog.value = true
+}
+
+async function confirmStatusTransition() {
+  if (!pendingStatusTransition.value || !slug.value || !key.value) return
+  const { task, targetStatus, sourceStatus } = pendingStatusTransition.value
+  isSubmittingTransition.value = true
   try {
     const updated = await taskService.updateTask(
       slug.value,
       key.value,
       task.task_number,
-      { status: newStatus }
+      { status: targetStatus }
     )
     handleTaskUpdated(updated)
+    notify.success(`Task ${task.ticket_key} moved to ${getTaskStatusConfig(targetStatus).label}`)
+    showStatusTransitionDialog.value = false
+    pendingStatusTransition.value = null
   } catch (err: unknown) {
-    errorMessage.value = formatApiError(err)
+    // Explicit rollback
+    task.status = sourceStatus
+    notify.error(formatApiError(err))
+  } finally {
+    isSubmittingTransition.value = false
+  }
+}
+
+function cancelStatusTransition() {
+  if (pendingStatusTransition.value) {
+    pendingStatusTransition.value.task.status = pendingStatusTransition.value.sourceStatus
+  }
+  pendingStatusTransition.value = null
+  showStatusTransitionDialog.value = false
+}
+
+// Drag & Drop
+function onDragOver(colStatus: TaskStatus, event: DragEvent) {
+  event.preventDefault()
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move'
+  }
+  activeDragColumn.value = colStatus
+}
+
+function onDragLeave(colStatus: TaskStatus, event: DragEvent) {
+  const currentTarget = event.currentTarget as HTMLElement
+  const relatedTarget = event.relatedTarget as HTMLElement
+  if (!currentTarget?.contains(relatedTarget)) {
+    if (activeDragColumn.value === colStatus) {
+      activeDragColumn.value = null
+    }
+  }
+}
+
+function onDrop(event: DragEvent, targetStatus: TaskStatus) {
+  activeDragColumn.value = null
+  const raw = event.dataTransfer?.getData('text/plain')
+  if (!raw) return
+  try {
+    const parsed = JSON.parse(raw)
+    const task = tasks.value.find((t) => t.id === parsed.id || t.task_number === parsed.taskNumber)
+    if (!task) return
+    if (task.status === targetStatus) return
+    requestStatusTransition(task, targetStatus)
+  } catch (err) {
+    console.error('Failed to parse drag data:', err)
   }
 }
 
 function openTaskDetail(task: Task) {
   selectedTask.value = task
   showTaskDetailModal.value = true
-}
-
-function triggerUnderDev(feature: string) {
-  underDevFeature.value = feature
-  showUnderDevModal.value = true
 }
 
 function formatDate(dateStr: string) {
@@ -242,25 +409,25 @@ function formatDate(dateStr: string) {
 function getProjectRoleBadgeColor(role: string) {
   switch (role?.toUpperCase()) {
     case 'PROJECT_LEAD':
-      return 'bg-purple-50 text-purple-700 border-purple-200'
+      return 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800'
     case 'CONTRIBUTOR':
-      return 'bg-indigo-50 text-indigo-700 border-indigo-200'
+      return 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800'
     case 'VIEWER':
     default:
-      return 'bg-slate-100 text-slate-700 border-slate-200'
+      return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
   }
 }
 
 function getStatusBadgeColor(status: string) {
   switch (status) {
     case 'ACTIVE':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800'
     case 'COMPLETED':
-      return 'bg-blue-50 text-blue-700 border-blue-200'
+      return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800'
     case 'ARCHIVED':
-      return 'bg-slate-100 text-slate-600 border-slate-200'
+      return 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
     default:
-      return 'bg-slate-50 text-slate-600 border-slate-200'
+      return 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
   }
 }
 
@@ -271,22 +438,17 @@ onMounted(() => {
 watch([slug, key], () => {
   loadProjectData()
 })
-
-watch([filterStatus, filterPriority], () => {
-  loadTasks()
-})
 </script>
 
 <template>
   <div class="space-y-6">
-    <!-- Breadcrumb Navigation -->
-    <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 flex-wrap">
+    <!-- Breadcrumb & Back -->
+    <div class="flex items-center gap-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
       <router-link
         to="/workspaces"
-        class="inline-flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+        class="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
       >
-        <LucideChevronLeft class="w-4 h-4" />
-        <span>Workspaces</span>
+        Workspaces
       </router-link>
       <span>/</span>
       <router-link
@@ -296,13 +458,15 @@ watch([filterStatus, filterPriority], () => {
         {{ slug }}
       </router-link>
       <span>/</span>
-      <span class="font-medium text-slate-800 dark:text-slate-200">{{ project?.name || key }}</span>
+      <span class="font-semibold text-slate-800 dark:text-slate-200">
+        {{ project?.name || key }}
+      </span>
     </div>
 
-    <!-- Error State -->
+    <!-- Error state -->
     <div
       v-if="errorMessage"
-      class="p-4 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 rounded-xl text-sm text-rose-700 dark:text-rose-300 flex items-center justify-between"
+      class="p-4 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 rounded-xl text-rose-700 dark:text-rose-300 text-sm flex items-center justify-between gap-3"
     >
       <span>{{ errorMessage }}</span>
       <BaseButton size="sm" variant="outline" @click="loadProjectData">
@@ -310,7 +474,7 @@ watch([filterStatus, filterPriority], () => {
       </BaseButton>
     </div>
 
-    <!-- Loading State -->
+    <!-- Loading Project Skeleton -->
     <div
       v-if="isLoading && !project"
       class="py-20 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 gap-3"
@@ -355,19 +519,19 @@ watch([filterStatus, filterPriority], () => {
                 </span>
                 <span class="flex items-center gap-1 font-medium text-indigo-600 dark:text-indigo-400">
                   <LucideCheckSquare class="w-3.5 h-3.5" />
-                  {{ tasks.length }} {{ tasks.length === 1 ? 'Task' : 'Tasks' }}
+                  {{ totalTasks || tasks.length }} {{ (totalTasks || tasks.length) === 1 ? 'Task' : 'Tasks' }}
                 </span>
               </div>
             </div>
           </div>
 
-          <!-- Actions -->
+          <!-- Actions: Edit, Delete, Add Member, New Task -->
           <div class="flex items-center gap-2 w-full sm:w-auto justify-start sm:justify-end shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800 flex-wrap">
             <BaseButton
               variant="outline"
               size="sm"
               class="flex-1 sm:flex-initial"
-              @click="triggerUnderDev('Edit Project (PUT /workspaces/{slug}/projects/{key})')"
+              @click="showEditProjectModal = true"
             >
               <LucideEdit class="w-4 h-4" />
               <span>Edit</span>
@@ -376,8 +540,8 @@ watch([filterStatus, filterPriority], () => {
             <BaseButton
               variant="outline"
               size="sm"
-              class="flex-1 sm:flex-initial"
-              @click="triggerUnderDev('Delete Project (DELETE /workspaces/{slug}/projects/{key})')"
+              class="flex-1 sm:flex-initial hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:border-rose-300 dark:hover:border-rose-800"
+              @click="showDeleteProjectDialog = true"
             >
               <LucideTrash2 class="w-4 h-4 text-rose-500" />
               <span class="text-rose-600 dark:text-rose-400">Delete</span>
@@ -438,7 +602,7 @@ watch([filterStatus, filterPriority], () => {
               class="text-[11px] sm:text-xs px-1.5 py-0.5 rounded-full font-medium"
               :class="activeTab === 'tasks' ? 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'"
             >
-              {{ tasks.length }}
+              {{ totalTasks || tasks.length }}
             </span>
           </button>
 
@@ -454,7 +618,7 @@ watch([filterStatus, filterPriority], () => {
             @click="activeTab = 'members'"
           >
             <LucideUsers class="w-4 h-4 shrink-0" />
-            <span>Project Members</span>
+            <span>Members</span>
             <span
               class="text-[11px] sm:text-xs px-1.5 py-0.5 rounded-full font-medium"
               :class="activeTab === 'members' ? 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'"
@@ -466,56 +630,14 @@ watch([filterStatus, filterPriority], () => {
       </div>
 
       <!-- Tab Content: Overview -->
-      <!-- Tab Content: Overview -->
       <div v-if="activeTab === 'overview'" class="space-y-6">
-        <!-- Live Dashboard KPI Metric Cards -->
-        <div v-if="dashboard" class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-            <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Tasks</span>
-            <div class="mt-2 flex items-baseline justify-between">
-              <span class="text-2xl font-bold text-slate-900 dark:text-white">{{ dashboard.total_tasks }}</span>
-              <span class="text-xs font-mono text-indigo-600 dark:text-indigo-400 font-semibold">{{ project.key }}</span>
-            </div>
-          </div>
-
-          <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-            <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Completed Tasks</span>
-            <div class="mt-2 flex items-baseline justify-between">
-              <span class="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{{ dashboard.completed_tasks }}</span>
-              <span class="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Closed</span>
-            </div>
-          </div>
-
-          <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-            <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Completion Rate</span>
-            <div class="mt-2 flex items-baseline justify-between">
-              <span class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{{ dashboard.completion_rate_percentage }}%</span>
-              <LucideTrendingUp class="w-4 h-4 text-indigo-500" />
-            </div>
-          </div>
-
-          <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-            <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Overdue Tasks</span>
-            <div class="mt-2 flex items-baseline justify-between">
-              <span
-                class="text-2xl font-bold"
-                :class="dashboard.overdue_tasks > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'"
-              >
-                {{ dashboard.overdue_tasks }}
-              </span>
-              <LucideAlertTriangle v-if="dashboard.overdue_tasks > 0" class="w-4 h-4 text-rose-500" />
-              <span v-else class="text-xs text-emerald-600 dark:text-emerald-400 font-medium">On Schedule</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <!-- Main Details Column -->
-          <div class="md:col-span-2 space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Main Column: Details & Quick Stats -->
+          <div class="lg:col-span-2 space-y-6">
             <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-xs space-y-4 transition-colors">
-              <h2 class="text-base font-bold text-slate-900 dark:text-white">About this Project</h2>
-              <p class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
-                {{ project.description || 'No description provided for this project.' }}
+              <h3 class="text-base font-bold text-slate-900 dark:text-white">Project Information</h3>
+              <p class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                {{ project.description || 'No detailed description provided for this project.' }}
               </p>
 
               <div class="pt-4 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -564,7 +686,7 @@ watch([filterStatus, filterPriority], () => {
                     <div class="min-w-0">
                       <h4 class="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{{ task.title }}</h4>
                       <p class="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-2 mt-0.5">
-                        <span>{{ task.status }}</span>
+                        <span>{{ getTaskStatusConfig(task.status).label }}</span>
                         <span v-if="task.assignee">• {{ task.assignee.full_name }}</span>
                       </p>
                     </div>
@@ -647,19 +769,27 @@ watch([filterStatus, filterPriority], () => {
 
       <!-- Tab Content: Tasks & Board -->
       <div v-else-if="activeTab === 'tasks'" class="space-y-4">
-        <!-- Controls Bar: Search, Sort, BaseSelect filters, view mode, new task button -->
+        <!-- Controls Bar: Responsive, Aligned Filter Toolbar -->
         <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-3 transition-colors">
           <!-- Left: Search, Filters & Sort -->
           <div class="flex items-center gap-2.5 flex-wrap flex-1">
-            <!-- Search Bar -->
+            <!-- Search Bar with Clear Icon -->
             <div class="relative w-full sm:w-56">
               <LucideSearch class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 v-model="searchQuery"
                 type="text"
                 placeholder="Search tasks..."
-                class="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors"
+                class="w-full pl-9 pr-8 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors"
               />
+              <button
+                v-if="searchQuery"
+                type="button"
+                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                @click="searchQuery = ''"
+              >
+                <LucideX class="w-3.5 h-3.5" />
+              </button>
             </div>
 
             <!-- Priority Filter -->
@@ -694,11 +824,25 @@ watch([filterStatus, filterPriority], () => {
             <!-- Sort Direction Toggle -->
             <button
               type="button"
-              class="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-indigo-600 transition-colors cursor-pointer"
+              class="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
               :title="sortOrder === 'asc' ? 'Ascending' : 'Descending'"
               @click="toggleSortOrder"
             >
               <LucideArrowUpDown class="w-4 h-4" />
+            </button>
+
+            <!-- Clear Filters Button -->
+            <button
+              v-if="hasActiveFilters"
+              type="button"
+              class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-colors cursor-pointer"
+              @click="clearFilters"
+            >
+              <LucideFilter class="w-3.5 h-3.5" />
+              <span>Clear</span>
+              <span class="w-4 h-4 rounded-full bg-rose-200 dark:bg-rose-800 text-rose-800 dark:text-rose-200 text-[10px] flex items-center justify-center font-bold">
+                {{ activeFilterCount }}
+              </span>
             </button>
           </div>
 
@@ -733,7 +877,7 @@ watch([filterStatus, filterPriority], () => {
           </div>
         </div>
 
-        <!-- Kanban Board View -->
+        <!-- Kanban Board View with Drag & Drop Dropzones -->
         <div
           v-if="viewMode === 'kanban'"
           class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start"
@@ -741,8 +885,17 @@ watch([filterStatus, filterPriority], () => {
           <div
             v-for="col in kanbanColumns"
             :key="col.value"
-            class="rounded-2xl border p-3.5 space-y-3 transition-colors"
-            :class="[col.columnBorder, col.columnBg]"
+            class="rounded-2xl border p-3.5 space-y-3 transition-all"
+            :class="[
+              col.columnBorder,
+              col.columnBg,
+              activeDragColumn === col.value
+                ? 'ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-900 border-indigo-400 dark:border-indigo-500'
+                : ''
+            ]"
+            @dragover="onDragOver(col.value, $event)"
+            @dragleave="onDragLeave(col.value, $event)"
+            @drop="onDrop($event, col.value)"
           >
             <!-- Column Header -->
             <div class="flex items-center justify-between pb-2 border-b border-slate-200/80 dark:border-slate-800">
@@ -764,14 +917,14 @@ watch([filterStatus, filterPriority], () => {
                 :key="task.id"
                 :task="task"
                 @click="openTaskDetail"
-                @quick-status="handleQuickStatus"
+                @quick-status="requestStatusTransition"
               />
 
               <div
                 v-if="tasks.filter((t) => t.status === col.value).length === 0"
-                class="py-8 text-center text-xs text-slate-400 dark:text-slate-500 italic"
+                class="py-8 text-center text-xs text-slate-400 dark:text-slate-500 italic rounded-xl border border-dashed border-slate-200 dark:border-slate-800"
               >
-                No tasks
+                Drop tasks here
               </div>
             </div>
           </div>
@@ -827,9 +980,7 @@ watch([filterStatus, filterPriority], () => {
                   </td>
                   <td class="py-3.5 px-6 text-xs text-slate-600 dark:text-slate-400">
                     <span v-if="task.assignee" class="flex items-center gap-1.5">
-                      <span class="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 inline-flex items-center justify-center font-bold text-[10px]">
-                        {{ task.assignee.full_name.slice(0, 2).toUpperCase() }}
-                      </span>
+                      <UserAvatar :user="task.assignee" size="xs" />
                       <span>{{ task.assignee.full_name }}</span>
                     </span>
                     <span v-else class="text-slate-400 dark:text-slate-500 italic">Unassigned</span>
@@ -873,9 +1024,18 @@ watch([filterStatus, filterPriority], () => {
             </div>
           </div>
 
-          <div v-else class="p-12 text-center text-slate-400 dark:text-slate-500 space-y-2">
-            <LucideCheckSquare class="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600" />
+          <!-- Empty State -->
+          <div v-else class="p-12 text-center text-slate-400 dark:text-slate-500 space-y-3">
+            <LucideCheckSquare class="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
             <p class="text-sm font-medium text-slate-600 dark:text-slate-400">No tasks found matching your filters</p>
+            <BaseButton
+              v-if="hasActiveFilters"
+              size="sm"
+              variant="outline"
+              @click="clearFilters"
+            >
+              Reset Filters
+            </BaseButton>
           </div>
         </div>
       </div>
@@ -895,7 +1055,7 @@ watch([filterStatus, filterPriority], () => {
           </BaseButton>
         </div>
 
-        <!-- Members Table -->
+        <!-- Members Table with Remove Action -->
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse text-sm">
             <thead>
@@ -904,6 +1064,7 @@ watch([filterStatus, filterPriority], () => {
                 <th class="py-3 px-6 font-semibold">Email</th>
                 <th class="py-3 px-6 font-semibold">Project Role</th>
                 <th class="py-3 px-6 font-semibold">Assigned Date</th>
+                <th class="py-3 px-6 font-semibold text-right">Actions</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
@@ -914,9 +1075,7 @@ watch([filterStatus, filterPriority], () => {
               >
                 <td class="py-4 px-6 font-medium text-slate-800 dark:text-slate-200">
                   <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-bold text-xs">
-                      {{ member.user.full_name.slice(0, 2).toUpperCase() }}
-                    </div>
+                    <UserAvatar :user="member.user" size="sm" />
                     <span>{{ member.user.full_name }}</span>
                   </div>
                 </td>
@@ -934,6 +1093,16 @@ watch([filterStatus, filterPriority], () => {
                 </td>
                 <td class="py-4 px-6 text-slate-500 dark:text-slate-400 text-xs">
                   {{ formatDate(member.joined_at) }}
+                </td>
+                <td class="py-4 px-6 text-right">
+                  <button
+                    type="button"
+                    class="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                    title="Remove member from project"
+                    @click="promptRemoveMember(member)"
+                  >
+                    <LucideUserMinus class="w-4 h-4" />
+                  </button>
                 </td>
               </tr>
             </tbody>
@@ -960,6 +1129,7 @@ watch([filterStatus, filterPriority], () => {
       :project-key="project.key"
       :members="members"
       @updated="handleTaskUpdated"
+      @deleted="handleTaskDeleted"
     />
 
     <AddProjectMemberModal
@@ -970,9 +1140,44 @@ watch([filterStatus, filterPriority], () => {
       @member-added="loadProjectData"
     />
 
-    <UnderDevelopmentModal
-      v-model="showUnderDevModal"
-      :feature-name="underDevFeature"
+    <EditProjectModal
+      v-if="project"
+      v-model="showEditProjectModal"
+      :workspace-slug="slug"
+      :project="project"
+      @updated="handleProjectUpdated"
+    />
+
+    <!-- Delete Project Confirm Dialog -->
+    <ConfirmDialog
+      v-model="showDeleteProjectDialog"
+      title="Delete Project"
+      :message="`Are you sure you want to delete project &quot;${project?.name}&quot; (${project?.key})? This action will archive the project and all associated tasks.`"
+      confirm-text="Delete Project"
+      variant="danger"
+      :loading="isDeletingProject"
+      @confirm="confirmDeleteProject"
+    />
+
+    <!-- Remove Member Confirm Dialog -->
+    <ConfirmDialog
+      v-model="showRemoveMemberDialog"
+      title="Remove Member from Project"
+      :message="`Are you sure you want to remove &quot;${memberToRemove?.user?.full_name}&quot; from this project? They will no longer have access to its tasks.`"
+      confirm-text="Remove Member"
+      variant="danger"
+      :loading="isRemovingMember"
+      @confirm="confirmRemoveMember"
+    />
+
+    <!-- Task Status Transition Dialog -->
+    <TaskStatusTransitionDialog
+      v-model="showStatusTransitionDialog"
+      :task="pendingStatusTransition?.task || null"
+      :new-status="pendingStatusTransition?.targetStatus || null"
+      :loading="isSubmittingTransition"
+      @confirm="confirmStatusTransition"
+      @cancel="cancelStatusTransition"
     />
   </div>
 </template>

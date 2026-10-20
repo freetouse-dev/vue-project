@@ -131,4 +131,19 @@ export const taskService = {
     )
     return response.data
   },
+
+  /**
+   * Soft-deletes a task
+   */
+  async deleteTask(
+    workspaceSlug: string,
+    projectKey: string,
+    taskNumber: number
+  ): Promise<void> {
+    await apiClient.delete(
+      `/workspaces/${encodeURIComponent(workspaceSlug)}/projects/${encodeURIComponent(projectKey)}/tasks/${taskNumber}`
+    )
+  },
 }
+
+export default taskService

@@ -1,18 +1,23 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { workspaceService } from '@/features/workspaces/services/workspaceService'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useAuthStore } from '@/stores/auth'
+import { useNotification } from '@/composables/useNotification'
 import { formatApiError } from '@/services/apiClient'
 import type { Workspace, WorkspaceMember } from '@/features/workspaces/types/workspace.types'
 import { projectService } from '@/features/projects/services/projectService'
 import type { Project } from '@/features/projects/types/project.types'
 import AddMemberModal from '@/features/workspaces/components/AddMemberModal.vue'
+import EditWorkspaceModal from '@/features/workspaces/components/EditWorkspaceModal.vue'
 import CreateProjectModal from '@/features/projects/components/CreateProjectModal.vue'
 import UnderDevelopmentModal from '@/components/common/UnderDevelopmentModal.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 import {
   LucideUsers,
   LucideFolderKanban,
@@ -25,10 +30,14 @@ import {
   LucideTrash2,
   LucidePlus,
   LucideArrowRight,
+  LucideUserMinus,
 } from 'lucide-vue-next'
 
 const route = useRoute()
+const router = useRouter()
 const workspaceStore = useWorkspaceStore()
+const authStore = useAuthStore()
+const notify = useNotification()
 
 const activeTab = ref<'overview' | 'members' | 'settings'>('overview')
 const workspace = ref<Workspace | null>(null)
@@ -39,6 +48,12 @@ const errorMessage = ref('')
 
 const showAddMemberModal = ref(false)
 const showCreateProjectModal = ref(false)
+const showEditWorkspaceModal = ref(false)
+const showDeleteWorkspaceDialog = ref(false)
+const isDeletingWorkspace = ref(false)
+const showRemoveMemberDialog = ref(false)
+const memberToRemove = ref<WorkspaceMember | null>(null)
+const isRemovingMember = ref(false)
 const showUnderDevModal = ref(false)
 const underDevFeature = ref('')
 
@@ -107,13 +122,100 @@ function formatDate(dateStr: string) {
 function getRoleBadgeColor(role: string) {
   switch (role?.toUpperCase()) {
     case 'OWNER':
-      return 'bg-purple-50 text-purple-700 border-purple-200'
+      return 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800'
     case 'ADMIN':
-      return 'bg-indigo-50 text-indigo-700 border-indigo-200'
+      return 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800'
+    case 'VIEWER':
+      return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
     case 'MEMBER':
     default:
-      return 'bg-blue-50 text-blue-700 border-blue-200'
+      return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800'
   }
+}
+
+const currentUserMember = computed(() =>
+  members.value.find((m) => m.user_id === authStore.user?.id)
+)
+
+const canManageWorkspace = computed(() => {
+  if (authStore.isSuperuser) return true
+  if (workspace.value?.owner_id === authStore.user?.id) return true
+  const role = currentUserMember.value?.role
+  return role === 'OWNER' || role === 'ADMIN'
+})
+
+const isWorkspaceOwner = computed(() => {
+  if (authStore.isSuperuser) return true
+  if (workspace.value?.owner_id === authStore.user?.id) return true
+  return currentUserMember.value?.role === 'OWNER'
+})
+
+const ownersCount = computed(() =>
+  members.value.filter((m) => m.role === 'OWNER').length
+)
+
+async function handleUpdateMemberRole(member: WorkspaceMember, newRole: string) {
+  if (!slug.value) return
+  if (member.role === 'OWNER' && newRole !== 'OWNER' && ownersCount.value <= 1) {
+    notify.error('Cannot demote the last remaining workspace owner.')
+    return
+  }
+  try {
+    const updated = await workspaceService.updateMemberRole(slug.value, member.user.id, newRole)
+    const idx = members.value.findIndex((m) => m.id === member.id)
+    if (idx !== -1) members.value[idx] = updated
+    notify.success(`Updated role for ${member.user.full_name} to ${newRole}.`)
+  } catch (err: unknown) {
+    notify.error(formatApiError(err))
+  }
+}
+
+function promptRemoveMember(member: WorkspaceMember) {
+  if (member.role === 'OWNER' && ownersCount.value <= 1) {
+    notify.error('Cannot remove the last remaining workspace owner.')
+    return
+  }
+  memberToRemove.value = member
+  showRemoveMemberDialog.value = true
+}
+
+async function confirmRemoveMember() {
+  if (!memberToRemove.value || !slug.value) return
+  isRemovingMember.value = true
+  try {
+    await workspaceService.removeMember(slug.value, memberToRemove.value.user.id)
+    notify.success(`Member ${memberToRemove.value.user.full_name} removed from workspace.`)
+    members.value = members.value.filter((m) => m.id !== memberToRemove.value!.id)
+    showRemoveMemberDialog.value = false
+    memberToRemove.value = null
+  } catch (err: unknown) {
+    notify.error(formatApiError(err))
+  } finally {
+    isRemovingMember.value = false
+  }
+}
+
+async function confirmDeleteWorkspace() {
+  if (!slug.value || !workspace.value) return
+  isDeletingWorkspace.value = true
+  try {
+    await workspaceService.deleteWorkspace(slug.value)
+    notify.success(`Workspace "${workspace.value.name}" deleted successfully.`)
+    showDeleteWorkspaceDialog.value = false
+    await workspaceStore.fetchWorkspaces()
+    router.push({ name: 'workspaces' })
+  } catch (err: unknown) {
+    notify.error(formatApiError(err))
+  } finally {
+    isDeletingWorkspace.value = false
+  }
+}
+
+function handleWorkspaceUpdated(updated: Workspace) {
+  workspace.value = updated
+  workspaceStore.currentWorkspace = updated
+  const idx = workspaceStore.workspaces.findIndex((w) => w.id === updated.id)
+  if (idx !== -1) workspaceStore.workspaces[idx] = updated
 }
 </script>
 
@@ -388,6 +490,7 @@ function getRoleBadgeColor(role: string) {
                 <th class="py-3 px-6 font-semibold">Email</th>
                 <th class="py-3 px-6 font-semibold">Role</th>
                 <th class="py-3 px-6 font-semibold">Joined Date</th>
+                <th v-if="canManageWorkspace" class="py-3 px-6 font-semibold text-right">Actions</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
@@ -398,9 +501,7 @@ function getRoleBadgeColor(role: string) {
               >
                 <td class="py-4 px-6 font-medium text-slate-800 dark:text-slate-200">
                   <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-bold text-xs">
-                      {{ member.user.full_name.slice(0, 2).toUpperCase() }}
-                    </div>
+                    <UserAvatar :user="member.user" size="sm" />
                     <span>{{ member.user.full_name }}</span>
                   </div>
                 </td>
@@ -408,7 +509,21 @@ function getRoleBadgeColor(role: string) {
                   {{ member.user.email }}
                 </td>
                 <td class="py-4 px-6">
+                  <!-- If can manage and not the sole owner: allow role change -->
+                  <div v-if="isWorkspaceOwner && !(member.role === 'OWNER' && ownersCount <= 1)">
+                    <select
+                      :value="member.role"
+                      @change="handleUpdateMemberRole(member, ($event.target as HTMLSelectElement).value)"
+                      class="px-2.5 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 cursor-pointer font-medium"
+                    >
+                      <option value="VIEWER">Viewer</option>
+                      <option value="MEMBER">Member</option>
+                      <option value="ADMIN">Admin</option>
+                      <option value="OWNER">Owner</option>
+                    </select>
+                  </div>
                   <span
+                    v-else
                     class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize border"
                     :class="getRoleBadgeColor(member.role)"
                   >
@@ -418,6 +533,20 @@ function getRoleBadgeColor(role: string) {
                 </td>
                 <td class="py-4 px-6 text-slate-500 dark:text-slate-400 text-xs">
                   {{ formatDate(member.joined_at) }}
+                </td>
+                <td v-if="canManageWorkspace" class="py-4 px-6 text-right">
+                  <button
+                    v-if="!(member.role === 'OWNER' && ownersCount <= 1)"
+                    type="button"
+                    title="Remove member"
+                    class="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors cursor-pointer"
+                    @click="promptRemoveMember(member)"
+                  >
+                    <LucideUserMinus class="w-4 h-4" />
+                  </button>
+                  <span v-else class="text-[11px] text-slate-400 dark:text-slate-500 italic">
+                    Sole Owner
+                  </span>
                 </td>
               </tr>
             </tbody>
@@ -441,28 +570,32 @@ function getRoleBadgeColor(role: string) {
               <p class="text-xs text-slate-500 dark:text-slate-400">Change workspace display name and description</p>
             </div>
             <BaseButton
+              v-if="canManageWorkspace"
               variant="outline"
               size="sm"
-              @click="triggerUnderDev('Update Workspace (PUT /workspaces/{slug})')"
+              @click="showEditWorkspaceModal = true"
             >
               <LucideEdit class="w-4 h-4" />
               <span>Edit Details</span>
             </BaseButton>
+            <span v-else class="text-xs text-slate-400 dark:text-slate-500 italic">Admin only</span>
           </div>
 
           <div class="flex items-center justify-between p-4 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/20">
             <div>
               <h4 class="text-sm font-semibold text-rose-900 dark:text-rose-200">Delete Workspace</h4>
-              <p class="text-xs text-rose-600 dark:text-rose-400">Permanently delete this workspace and all associated resources</p>
+              <p class="text-xs text-rose-600 dark:text-rose-400">Soft-delete this workspace and hide its descendant projects and tasks</p>
             </div>
             <BaseButton
+              v-if="isWorkspaceOwner"
               variant="danger"
               size="sm"
-              @click="triggerUnderDev('Delete Workspace (DELETE /workspaces/{slug})')"
+              @click="showDeleteWorkspaceDialog = true"
             >
               <LucideTrash2 class="w-4 h-4" />
               <span>Delete Workspace</span>
             </BaseButton>
+            <span v-else class="text-xs text-slate-400 dark:text-slate-500 italic">Owner only</span>
           </div>
         </div>
       </div>
@@ -476,10 +609,41 @@ function getRoleBadgeColor(role: string) {
       @created="handleProjectCreated"
     />
 
+    <EditWorkspaceModal
+      v-if="workspace"
+      v-model="showEditWorkspaceModal"
+      :workspace="workspace"
+      @updated="handleWorkspaceUpdated"
+    />
+
     <AddMemberModal
       v-model="showAddMemberModal"
       :slug="slug"
       @member-added="loadWorkspaceData"
+    />
+
+    <!-- Delete Workspace Confirmation Dialog -->
+    <ConfirmDialog
+      v-model="showDeleteWorkspaceDialog"
+      title="Delete Workspace"
+      :message="`Are you sure you want to soft-delete workspace &quot;${workspace?.name}&quot; (${workspace?.slug})?`"
+      details="This will soft-delete this workspace along with all child projects, tasks, and task comments. They will be archived and hidden from active views while preserving audit history."
+      confirm-text="Delete Workspace"
+      variant="danger"
+      :loading="isDeletingWorkspace"
+      @confirm="confirmDeleteWorkspace"
+    />
+
+    <!-- Remove Member Confirmation Dialog -->
+    <ConfirmDialog
+      v-model="showRemoveMemberDialog"
+      title="Remove Workspace Member"
+      :message="`Are you sure you want to remove ${memberToRemove?.user.full_name} (${memberToRemove?.user.email}) from this workspace?`"
+      details="They will immediately lose access to all projects, tickets, and team collaboration in this workspace."
+      confirm-text="Remove Member"
+      variant="danger"
+      :loading="isRemovingMember"
+      @confirm="confirmRemoveMember"
     />
 
     <UnderDevelopmentModal

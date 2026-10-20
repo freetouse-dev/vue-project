@@ -54,4 +54,39 @@ export const workspaceService = {
     )
     return response.data
   },
+
+  /**
+   * Updates workspace name or description
+   */
+  async updateWorkspace(slug: string, payload: { name?: string; description?: string | null }): Promise<Workspace> {
+    const response = await apiClient.patch<Workspace>(`/workspaces/${encodeURIComponent(slug)}`, payload)
+    return response.data
+  },
+
+  /**
+   * Soft-deletes a workspace
+   */
+  async deleteWorkspace(slug: string): Promise<void> {
+    await apiClient.delete(`/workspaces/${encodeURIComponent(slug)}`)
+  },
+
+  /**
+   * Updates a workspace member's role
+   */
+  async updateMemberRole(slug: string, userId: number, role: string): Promise<WorkspaceMember> {
+    const response = await apiClient.patch<WorkspaceMember>(
+      `/workspaces/${encodeURIComponent(slug)}/members/${userId}`,
+      { role }
+    )
+    return response.data
+  },
+
+  /**
+   * Removes a member from the workspace
+   */
+  async removeMember(slug: string, userId: number): Promise<void> {
+    await apiClient.delete(`/workspaces/${encodeURIComponent(slug)}/members/${userId}`)
+  },
 }
+
+export default workspaceService

@@ -14,6 +14,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isInitialized = ref<boolean>(false)
 
   const isAuthenticated = computed(() => !!token.value)
+  const isSuperuser = computed(() => !!user.value?.is_superuser)
 
   /**
    * Initializes auth state on application startup by checking persisted token
@@ -80,6 +81,7 @@ export const useAuthStore = defineStore('auth', () => {
     isLoading,
     isInitialized,
     isAuthenticated,
+    isSuperuser,
     initAuth,
     login,
     register,

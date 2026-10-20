@@ -1,6 +1,6 @@
 import type { User } from '@/features/auth/types/auth.types'
 
-export type WorkspaceRole = 'OWNER' | 'ADMIN' | 'MEMBER'
+export type WorkspaceRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'
 
 export interface Workspace {
   id: number
@@ -8,6 +8,8 @@ export interface Workspace {
   description: string | null
   slug: string
   owner_id: number
+  deleted_at?: string | null
+  deleted_by_id?: number | null
   created_at: string
   updated_at: string
 }
@@ -16,6 +18,11 @@ export interface WorkspaceCreatePayload {
   name: string
   description?: string | null
   slug?: string | null
+}
+
+export interface WorkspaceUpdatePayload {
+  name?: string
+  description?: string | null
 }
 
 export interface WorkspaceMember {
@@ -29,5 +36,9 @@ export interface WorkspaceMember {
 
 export interface WorkspaceMemberAddPayload {
   email: string
+  role: WorkspaceRole
+}
+
+export interface WorkspaceMemberUpdatePayload {
   role: WorkspaceRole
 }

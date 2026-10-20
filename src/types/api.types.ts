@@ -14,3 +14,13 @@ export interface ApiErrorResponse {
 }
 
 export type FeatureStatus = 'implemented' | 'partial' | 'under_development'
+
+export interface PaginatedResponse<T> {
+  items: T[]
+  total: number
+  page: number
+  size: number
+  pages: number
+  has_next: boolean
+  has_prev: boolean
+}

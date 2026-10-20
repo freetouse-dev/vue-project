@@ -187,6 +187,10 @@ async function handleResetPassword() {
         >
           Send Reset Code
         </BaseButton>
+
+        <p class="text-[11px] text-center text-slate-400 dark:text-slate-500 leading-relaxed">
+          Reset codes are dispatched asynchronously via background tasks. Please allow a few moments to arrive.
+        </p>
       </form>
 
       <!-- Step 2: Verify OTP -->
@@ -215,10 +219,13 @@ async function handleResetPassword() {
           Verify Code
         </BaseButton>
 
-        <div class="text-center">
+        <div class="text-center space-y-1">
+          <p class="text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed">
+            Did not receive the code? Please check your spam folder or allow a moment for background delivery.
+          </p>
           <button
             type="button"
-            class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+            class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
             @click="step = 1"
           >
             Wrong email address? Change email
