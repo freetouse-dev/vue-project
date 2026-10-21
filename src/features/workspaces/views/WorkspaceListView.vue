@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useCompanyStore } from '@/stores/company'
 import { formatApiError } from '@/services/apiClient'
 import CreateWorkspaceModal from '@/features/workspaces/components/CreateWorkspaceModal.vue'
+import RequestWorkspaceModal from '@/features/workspaces/components/RequestWorkspaceModal.vue'
 import UnderDevelopmentModal from '@/components/common/UnderDevelopmentModal.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -14,15 +16,20 @@ import {
   LucideArrowRight,
   LucideMoreVertical,
   LucideCalendar,
+  LucideSend,
 } from 'lucide-vue-next'
 
 const router = useRouter()
 const workspaceStore = useWorkspaceStore()
+const companyStore = useCompanyStore()
 
 const showCreateModal = ref(false)
+const showRequestModal = ref(false)
 const showUnderDevModal = ref(false)
 const underDevFeature = ref('')
 const fetchError = ref('')
+
+const canCreateWorkspace = computed(() => companyStore.canCreateWorkspace)
 
 onMounted(async () => {
   try {
@@ -65,9 +72,25 @@ function formatDate(dateStr: string) {
 
       <div class="flex items-center justify-between sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto">
         <StatusBadge status="implemented" label="Live API" />
-        <BaseButton size="sm" class="sm:text-sm" @click="showCreateModal = true">
+        <BaseButton
+          v-if="canCreateWorkspace"
+          size="sm"
+          class="sm:text-sm"
+          @click="showCreateModal = true"
+        >
           <LucidePlus class="w-4 h-4" />
           <span>New Workspace</span>
+        </BaseButton>
+        <BaseButton
+          v-else
+          variant="secondary"
+          size="sm"
+          class="sm:text-sm"
+          @click="showRequestModal = true"
+          title="Submit a request to company administrators to create a workspace"
+        >
+          <LucideSend class="w-4 h-4" />
+          <span>Request Workspace</span>
         </BaseButton>
       </div>
     </div>
@@ -175,6 +198,11 @@ function formatDate(dateStr: string) {
     <CreateWorkspaceModal
       v-model="showCreateModal"
       @created="handleCreated"
+    />
+
+    <RequestWorkspaceModal
+      v-model="showRequestModal"
+      @submitted="() => workspaceStore.fetchWorkspaces()"
     />
 
     <UnderDevelopmentModal

@@ -9,12 +9,16 @@ const apiClient = axios.create({
   timeout: 15000,
 })
 
-// Request Interceptor: Attach Bearer Token
+// Request Interceptor: Attach Bearer Token and Active Company Slug
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('pm_access_token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
+    }
+    const companySlug = localStorage.getItem('pm_active_company_slug')
+    if (companySlug && !config.headers['X-Company-Slug']) {
+      config.headers['X-Company-Slug'] = companySlug
     }
     return config
   },

@@ -4,6 +4,8 @@ export interface AdminStats {
   total_users: number
   active_users: number
   unverified_users: number
+  total_companies?: number
+  pending_company_requests?: number
   total_workspaces: number
   total_projects: number
   total_tasks: number

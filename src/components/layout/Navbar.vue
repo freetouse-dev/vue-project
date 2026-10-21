@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useWorkspaceStore } from '@/stores/workspace'
 import AppLogo from '@/components/common/AppLogo.vue'
+import CompanyDropdown from '@/components/layout/CompanyDropdown.vue'
 import WorkspaceDropdown from '@/components/layout/WorkspaceDropdown.vue'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
@@ -59,8 +60,13 @@ function handleLogout() {
         class="flex items-center gap-2 font-bold text-lg text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 transition-colors shrink-0"
       >
         <AppLogo size="sm" />
-        <span class="hidden sm:inline tracking-tight font-extrabold text-slate-900 dark:text-white">TaskFlow</span>
+        <span class="hidden sm:inline tracking-tight font-extrabold text-slate-900 dark:text-white">Unitask</span>
       </router-link>
+
+      <span class="hidden sm:inline text-slate-300 dark:text-slate-700">/</span>
+
+      <!-- Organization / Company Selector Dropdown -->
+      <CompanyDropdown />
 
       <span class="hidden sm:inline text-slate-300 dark:text-slate-700">/</span>
 
@@ -73,15 +79,16 @@ function handleLogout() {
     <!-- Right: Admin + Theme Toggle + Current User & Logout -->
     <div class="flex items-center gap-1.5 sm:gap-3 shrink-0">
       <!-- Admin Link if Superuser -->
-      <router-link
-        v-if="authStore.isSuperuser"
-        to="/admin"
-        class="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 border border-purple-500/20 transition-colors"
-        title="Admin Dashboard"
-      >
-        <Shield class="w-3.5 h-3.5" />
-        <span>Admin</span>
-      </router-link>
+      <template v-if="authStore.isSuperuser">
+        <router-link
+          to="/admin"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900 border border-purple-300 dark:border-purple-800 transition-colors shadow-2xs"
+          title="Switch to Admin Console"
+        >
+          <Shield class="w-3.5 h-3.5" />
+          <span>Admin Console</span>
+        </router-link>
+      </template>
 
       <!-- Theme Switcher -->
       <ThemeToggle />

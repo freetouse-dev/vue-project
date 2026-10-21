@@ -9,6 +9,7 @@ import {
   LucideHelpCircle,
   LucideX,
   Shield,
+  LayoutDashboard,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import AppLogo from '@/components/common/AppLogo.vue'
@@ -47,6 +48,21 @@ function handleNavClick() {
           <p class="px-3 text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-2">
             Workspace
           </p>
+
+          <!-- Dashboard -->
+          <router-link
+            to="/dashboard"
+            class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
+            :class="[
+              route.path === '/dashboard' || route.path === '/'
+                ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white',
+            ]"
+          >
+            <LayoutDashboard class="w-5 h-5 shrink-0" />
+            <span>Dashboard</span>
+            <span class="ml-auto w-2 h-2 rounded-full bg-emerald-500" title="Active feature"></span>
+          </router-link>
 
           <!-- Workspaces -->
           <router-link
@@ -169,7 +185,7 @@ function handleNavClick() {
           <div class="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-4">
             <div class="flex items-center gap-2.5">
               <AppLogo size="sm" />
-              <span class="font-extrabold text-base tracking-tight text-slate-900 dark:text-white">TaskFlow</span>
+              <span class="font-extrabold text-base tracking-tight text-slate-900 dark:text-white">Unitask</span>
             </div>
             <button
               type="button"
@@ -185,6 +201,22 @@ function handleNavClick() {
             <p class="px-3 text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-2">
               Workspace
             </p>
+
+            <!-- Dashboard -->
+            <router-link
+              to="/dashboard"
+              class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
+              :class="[
+                route.path === '/dashboard' || route.path === '/'
+                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white',
+              ]"
+              @click="handleNavClick"
+            >
+              <LayoutDashboard class="w-5 h-5 shrink-0" />
+              <span>Dashboard</span>
+              <span class="ml-auto w-2 h-2 rounded-full bg-emerald-500"></span>
+            </router-link>
 
             <router-link
               to="/workspaces"

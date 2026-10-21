@@ -67,7 +67,7 @@ async function handleSubmit() {
           Create an Account
         </h1>
         <p class="text-sm text-slate-500 dark:text-slate-400">
-          Get started with your collaborative workspace
+          Get started with your collaborative workspace on Unitask
         </p>
       </div>
 

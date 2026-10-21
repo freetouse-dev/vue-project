@@ -34,8 +34,14 @@ async function handleSubmit() {
       password: password.value,
     })
 
-    const redirect = (route.query.redirect as string) || '/workspaces'
-    router.push(redirect)
+    const redirect = route.query.redirect as string
+    if (redirect) {
+      router.push(redirect)
+    } else if (authStore.user?.is_superuser) {
+      router.push('/admin/overview')
+    } else {
+      router.push('/dashboard')
+    }
   } catch (err: unknown) {
     const msg = formatApiError(err)
     errorMessage.value = msg
@@ -60,7 +66,7 @@ async function handleSubmit() {
           Welcome back
         </h1>
         <p class="text-sm text-slate-500 dark:text-slate-400">
-          Sign in to your project management workspace
+          Sign in to your Unitask workspace
         </p>
       </div>
 
